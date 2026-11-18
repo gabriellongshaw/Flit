@@ -88,25 +88,29 @@ export class Bird {
     ctx.fill();
     ctx.restore();
 
-    ctx.fillStyle = palette.visor;
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.roundRect(1, -10, 17, 11, 5.5);
+    ctx.arc(8, -5, 6.5, 0, Math.PI * 2);
     ctx.fill();
 
     if (this.alive) {
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillStyle = palette.visor;
       ctx.beginPath();
-      ctx.roundRect(4, -8, 7, 3, 1.5);
+      ctx.arc(10, -4.5, 3.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(11.2, -5.8, 1.1, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.strokeStyle = palette.visor;
       ctx.lineWidth = 1.8;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(8, -8);
-      ctx.lineTo(13, -3);
-      ctx.moveTo(13, -8);
-      ctx.lineTo(8, -3);
+      ctx.moveTo(5, -8);
+      ctx.lineTo(11, -2);
+      ctx.moveTo(11, -8);
+      ctx.lineTo(5, -2);
       ctx.stroke();
     }
 
