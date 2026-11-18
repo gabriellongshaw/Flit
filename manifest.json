@@ -1,0 +1,13 @@
+{
+  "name": "Flit",
+  "short_name": "Flit",
+  "description": "A simple one-tap flapping game.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1512",
+  "theme_color": "#10b981",
+  "icons": [
+    { "src": "assets/images/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

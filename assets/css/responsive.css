@@ -1,0 +1,71 @@
+@media (min-width: 480px) {
+  .leave-label {
+    display: inline;
+  }
+  .leave-button {
+    padding: 0 16px 0 12px;
+  }
+  .modal {
+    padding: 30px 28px 24px;
+  }
+}
+
+@media (min-width: 768px) {
+  .hud {
+    padding-top: 18px;
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+  .score-block {
+    top: 16px;
+  }
+  .hint-title {
+    font-size: 1.9rem;
+  }
+  .credits-container {
+    font-size: 0.85rem;
+  }
+  .home-top {
+    top: 18px;
+    left: 22px;
+    right: 22px;
+  }
+}
+
+@media (max-height: 480px) {
+  .home-content {
+    gap: 8px;
+    padding-bottom: 14dvh;
+  }
+  .home-content .button {
+    margin-top: 2px;
+  }
+  .start-hint {
+    top: 18%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-content > *,
+  #play-btn,
+  .modal,
+  .modal .stat,
+  .badge-best,
+  .sound-menu,
+  .sound-control,
+  .overlay.closing,
+  .overlay.closing .modal,
+  .sound-menu.closing,
+  .start-hint,
+  .countdown-num {
+    animation: none;
+  }
+  .page,
+  .button,
+  .button svg,
+  .leave-button svg,
+  .sound-switch,
+  .sound-switch::after {
+    transition: none;
+  }
+}
