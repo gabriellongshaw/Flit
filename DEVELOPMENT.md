@@ -15,6 +15,7 @@ Flit follows the same layout as Dash, with only what a one-button game needs.
 - `assets/js/core` holds shared helpers: audio and music, theme, motion, page transitions, storage and utils.
 - `assets/js/components` holds the game parts: `game.js` (loop, scoring, collisions), `bird.js`, `pipes.js`, `world.js` (sky, day and night cycle, ground), `particles.js`, `stage.js` and the `sound.js` menu.
 - `assets/js/pages` holds the entry scripts for the two pages.
+- `scripts/` and `.github/workflows/` hold the release automation, and `version.json` holds the current version.
 
 ## Tuning
 
@@ -29,3 +30,15 @@ The best score is saved in `localStorage` as `flit:best`, and the sound settings
 ## Sound
 
 All music and effects are generated in the browser with the Web Audio API. The tune is the `SCORE` list in `assets/js/core/music.js` and the effects are in `assets/js/core/audio.js`.
+
+## Releases
+
+Releases are automatic. Every push to `main` runs `.github/workflows/release.yml`, which runs `scripts/release.mjs`:
+
+- It reads the commits since the last `v*` tag as conventional commits. `feat` bumps the minor version, `fix` and `perf` bump the patch, and `!` or a `BREAKING CHANGE` footer bumps the major. Other types alone do not release.
+- It creates the tag and a GitHub Release with notes grouped into features, fixes and maintenance.
+- It writes the new version to `version.json`, which the workflow commits with `[skip release]`. The home page reads that file to show the version in the footer, linking to the GitHub releases. If the branch blocks direct pushes from Actions, that step is skipped and the label keeps the last version.
+
+Add `[skip release]` to a commit message to stop a push from releasing. If a release commit is undone, amended or force pushed, the next push moves the existing tag to the new commit and updates its release instead of making another version. The workflow can also be run by hand from the Actions tab, and `dry-run` only prints the next version and notes.
+
+The first release will be `v0.1.0`, so `version.json` starts there.

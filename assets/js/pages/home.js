@@ -2,6 +2,7 @@ import { World } from '../components/world.js';
 import { Bird } from '../components/bird.js';
 import { fitStage } from '../components/stage.js';
 import { mountSound } from '../components/sound.js';
+import { mountVersion } from '../components/version.js';
 import { readPalette, onThemeChange, detectTouch, isDark } from '../core/theme.js';
 import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { initAudio } from '../core/audio.js';
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPageFadeIn();
   initAudio(1);
   mountSound(document.querySelector('.home-nav'));
+  mountVersion(document.querySelector('.credits-container'), { href: 'https://github.com/gabriellongshaw/Flit/releases' });
 
   const best = getBest();
   document.getElementById('home-best').textContent = best > 0 ? `Best ${best}` : '';

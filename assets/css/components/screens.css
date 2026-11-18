@@ -123,3 +123,15 @@ body.leaving .page {
 .credits-link:hover {
   color: var(--accent-soft);
 }
+
+.version-tag {
+  font-variant-numeric: tabular-nums;
+}
+
+span.version-tag {
+  text-decoration: none;
+}
+
+a.version-tag:active {
+  opacity: 0.7;
+}
