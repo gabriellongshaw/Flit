@@ -3,7 +3,9 @@ import { DEFAULT_EQUIPPED, DEFAULT_OWNED, findItem, kindOf } from './cosmetics.j
 import { weekKey } from './week.js';
 
 const KEY = 'flit:profile';
-const API_URL = 'https://flit-api.vercel.app/api/game';
+const HOSTED = 'https://flit-tau.vercel.app';
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const API_URL = LOCAL_HOST ? `${HOSTED}/api/game` : '/api/game';
 
 const listeners = new Set();
 const session = { status: 'loading', syncing: false, error: null };

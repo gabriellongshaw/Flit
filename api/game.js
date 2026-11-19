@@ -5,7 +5,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED, findItem, kindOf } from '../assets/js/core/cosmetics.js';
 import { weekKey } from '../assets/js/core/week.js';
 
-const ORIGINS = ['https://gabriellongshaw.co.uk', 'https://www.gabriellongshaw.co.uk'];
+const ORIGINS = ['https://flit-tau.vercel.app', 'https://gabriellongshaw.co.uk', 'https://www.gabriellongshaw.co.uk'];
 const LOCAL = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 const MIN_RUN_SECONDS = 2;
