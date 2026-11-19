@@ -4,6 +4,8 @@ import { Spawner, PIPE_WIDTH } from './pipes.js';
 import { Particles } from './particles.js';
 import { fitStage } from './stage.js';
 import { readPalette, isDark } from '../core/theme.js';
+import { paletteFor } from '../core/cosmetics.js';
+import { currentLook } from './look.js';
 import { clamp } from '../core/utils.js';
 import { audio } from '../core/audio.js';
 
@@ -27,13 +29,16 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.hooks = hooks;
     this.best = hooks.best || 0;
-    this.world = new World();
+    this.look = currentLook();
+    this.world = new World(this.look.world);
     this.world.bindSky(mode => {
       document.documentElement.dataset.sky = mode;
     });
     this.world.setDark(isDark());
-    this.palette = readPalette();
+    this.basePalette = readPalette();
+    this.palette = paletteFor(this.basePalette, this.look);
     this.bird = new Bird();
+    this.bird.hat = this.look.hat;
     this.spawner = new Spawner();
     this.particles = new Particles();
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -66,8 +71,16 @@ export class Game {
     return this.groundY * 0.46;
   }
 
+  setLook() {
+    this.look = currentLook();
+    this.world.setTheme(this.look.world);
+    this.bird.hat = this.look.hat;
+    this.setPalette();
+  }
+
   setPalette() {
-    this.palette = readPalette();
+    this.basePalette = readPalette();
+    this.palette = paletteFor(this.basePalette, this.look);
     this.world.setDark(isDark());
   }
 
@@ -216,10 +229,11 @@ export class Game {
       ctx.translate((Math.random() - 0.5) * this.shake * 10, (Math.random() - 0.5) * this.shake * 10);
     }
     this.world.draw(ctx);
-    this.spawner.draw(ctx, this.palette, this.groundY);
+    const palette = this.look.skin.rainbow ? paletteFor(this.basePalette, this.look, this.time) : this.palette;
+    this.spawner.draw(ctx, palette, this.groundY);
     this.world.drawGround(ctx);
     this.particles.draw(ctx);
-    this.bird.draw(ctx, this.palette);
+    this.bird.draw(ctx, palette);
     if (this.flash > 0) {
       ctx.globalAlpha = this.flash * 0.45;
       ctx.fillStyle = '#ffffff';

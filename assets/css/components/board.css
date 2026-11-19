@@ -1,0 +1,132 @@
+.board-meta {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--meta-text);
+}
+
+.rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card-bg);
+  animation: cardIn 0.35s cubic-bezier(0.33, 1, 0.68, 1) backwards;
+  animation-delay: calc(var(--n, 0) * 24ms);
+}
+
+.rank-row.me {
+  border-color: var(--accent);
+}
+
+.rank-pos {
+  width: 28px;
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-align: center;
+  color: var(--meta-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.top-1 .rank-pos { color: #d99a06; }
+.top-2 .rank-pos { color: #8d97a5; }
+.top-3 .rank-pos { color: #c2703d; }
+
+.rank-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  object-fit: cover;
+}
+
+.rank-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rank-you {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.rank-score {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-gap {
+  text-align: center;
+  color: var(--meta-text);
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.rank-row.skeleton {
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+}
+
+.rank-row.skeleton .rank-name,
+.rank-row.skeleton .rank-score,
+.rank-row.skeleton .rank-pos {
+  color: transparent;
+}
+
+.rank-row.skeleton .rank-avatar {
+  background: var(--secondary-bg);
+}
+
+.board-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--meta-text);
+  font-weight: 600;
+}
+
+.board-foot {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--meta-text);
+}
+
+#visibility-btn {
+  align-self: center;
+}
+
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}

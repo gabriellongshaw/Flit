@@ -4,14 +4,14 @@ export const PIPE_WIDTH = 62;
 export const CAP_WIDTH = 74;
 const CAP_HEIGHT = 24;
 const CAP_OVERHANG = (CAP_WIDTH - PIPE_WIDTH) / 2;
-const GAP = 150;
+export const GAP = 150;
 const MARGIN = 48;
 const SPACING_TIME = 1.5;
 const FIRST_OFFSET = 160;
 const SPAWN_OFFSET = 40;
 const TOP = -60;
 
-class Pipe {
+export class Pipe {
   constructor(x, gapY) {
     this.x = x;
     this.gapY = gapY;

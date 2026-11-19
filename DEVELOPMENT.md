@@ -4,7 +4,7 @@ Notes for running and changing the game.
 
 ## Running locally
 
-The game uses ES modules, so serve the folder over HTTP (for example `python3 -m http.server`) rather than opening `index.html` directly. It is fully static, so it can be hosted on GitHub Pages or Vercel with no setup.
+The game uses ES modules, so serve the folder over HTTP (for example `python3 -m http.server`) rather than opening `index.html` directly. The pages are static (GitHub Pages or Vercel), but coins, the shop and the leaderboard need the API in `api/game.js` deployed to Vercel. See Online setup below.
 
 ## Structure
 
@@ -14,18 +14,33 @@ Flit follows the same layout as Dash, with only what a one-button game needs.
 - `assets/css` holds `variables.css`, `main.css`, `animations.css` and `responsive.css` (all media queries live there), with one file per component in `components/`.
 - `assets/js/core` holds shared helpers: audio and music, theme, motion, page transitions, storage and utils.
 - `assets/js/components` holds the game parts: `game.js` (loop, scoring, collisions), `bird.js`, `pipes.js`, `world.js` (sky, day and night cycle, ground), `particles.js`, `stage.js` and the `sound.js` menu.
-- `assets/js/pages` holds the entry scripts for the two pages.
+- `assets/js/pages` holds the entry scripts for the pages: home, game, shop and leaderboard.
+- `assets/js/core/cosmetics.js` and `worlds.js` list every shop item and price (the server reads the same files). `components/hats.js` draws the hats.
+- `api/game.js` is the Vercel serverless function behind the shop and leaderboard.
 - `scripts/` and `.github/workflows/` hold the release automation, and `version.json` holds the current version.
 
 ## Tuning
 
 - **Feel:** `GRAVITY` and `FLAP_SPEED` at the top of `components/bird.js`.
 - **Difficulty:** `BASE_SPEED`, `SPEED_PER_POINT` and `MAX_BOOST` at the top of `components/game.js`. The gap size, margins and spacing are at the top of `components/pipes.js`. Pillars are spaced by time, so they stay the same distance apart in seconds as the game speeds up.
-- **Colours:** the bird and pillar colours come from `variables.css`. The sky colours are in `components/world.js`.
+- **Colours:** the sunset theme colours come from `variables.css`. The default bird and pillar colours are `--runner` and `--hazard`. Sky and scenery colours for each world are in `core/worlds.js`.
+- **Shop:** add an item by adding it to the lists in `core/cosmetics.js` (or `core/worlds.js` for worlds). Hats are drawn in `components/hats.js`.
 
 ## Storage
 
-The best score is saved in `localStorage` as `flit:best`, and the sound settings as `flit:sound`. Nothing is sent anywhere.
+The best score is saved in `localStorage` as `flit:best`, the sound settings as `flit:sound`, and a cached copy of the profile as `flit:profile` (the server copy replaces it on every sync).
+
+## Online setup
+
+Flit shares Dash's Firebase project but uses its own Firestore collections (`flitProfiles`, `flitBoard`, `flitWeeks`). All reads and writes go through the API, so no Firestore rule changes are needed.
+
+1. In Firebase, enable Anonymous and Google sign-in, and add the domain that hosts Flit under Authentication, Settings, Authorized domains.
+2. Create a service account key (Project settings, Service accounts, Generate new private key).
+3. Create a Vercel project from this repo (it deploys `api/game.js`) and add the key's JSON as the `FIREBASE_SERVICE_ACCOUNT` environment variable.
+4. Set `API_URL` at the top of `assets/js/core/profile.js` to that project's `/api/game` address.
+5. Check `ORIGINS` at the top of `api/game.js` lists the site that serves the game.
+
+The server checks every run before paying coins: the run must come from a signed token, the score cannot exceed what is possible in the elapsed time, the flap count must be plausible, and a token cannot be replayed. Prices are read from `cosmetics.js` on the server, never from the client.
 
 ## Sound
 

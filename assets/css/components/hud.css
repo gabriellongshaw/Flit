@@ -106,3 +106,29 @@
   font-variant-numeric: tabular-nums;
   animation: countTick 0.8s cubic-bezier(0.33, 1, 0.68, 1) both;
 }
+.coin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.coin-pill.bump {
+  animation: scoreBump 0.35s ease;
+}
+
+.coin-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--coin);
+  border: 2px solid var(--coin-dark);
+  flex-shrink: 0;
+}

@@ -1,55 +1,47 @@
+import { WORLDS } from '../core/worlds.js';
 import { rand, clamp, seeded, parseColor, mixColor, tintColor, toCss, luminance } from '../core/utils.js';
 
 const PERIOD = 1600;
 const CYCLE = 24000;
 const WARM = parseColor('#fb923c');
 const KEYS = ['skyTop', 'skyBottom', 'sun', 'cloud', 'far', 'mid', 'ground', 'groundLine', 'dust'];
-const HILLS = [34, 18, 10, 0.006, 0.013];
+const COLOR_CACHE = new Map();
 
-const THEME = {
-  day: {
-    skyTop: '#c4f0da',
-    skyBottom: '#f3faf6',
-    sun: '#ffffff',
-    cloud: 'rgba(255,255,255,0.9)',
-    far: '#c3ead6',
-    mid: '#9ddcbe',
-    ground: '#14231c',
-    groundLine: '#34d399',
-    dust: '#e8f7ef'
-  },
-  night: {
-    skyTop: '#0b1512',
-    skyBottom: '#17382b',
-    sun: '#d7f5e6',
-    cloud: 'rgba(110,231,183,0.12)',
-    far: '#12281f',
-    mid: '#1a3b2d',
-    ground: '#050c09',
-    groundLine: '#1bb37a',
-    dust: '#6ee7b7'
+function colorsFor(theme) {
+  let hit = COLOR_CACHE.get(theme.id);
+  if (hit) return hit;
+  hit = { day: {}, night: {} };
+  for (const side of ['day', 'night']) {
+    for (const key of KEYS) hit[side][key] = parseColor(theme[side][key]);
   }
-};
-
-const COLORS = { day: {}, night: {} };
-for (const side of ['day', 'night']) {
-  for (const key of KEYS) COLORS[side][key] = parseColor(THEME[side][key]);
+  COLOR_CACHE.set(theme.id, hit);
+  return hit;
 }
 
-function buildSkyline() {
-  const next = seeded(7);
+function buildScenery(theme) {
+  const next = seeded(theme.seed);
   const list = [];
   let x = 0;
   while (x < PERIOD) {
-    const w = Math.min(40 + next() * 70, PERIOD - x);
-    list.push({ x, w, h: 60 + next() * 130 });
-    x += w + next() * 12;
+    if (theme.scenery === 'peaks') {
+      const w = Math.min(90 + next() * 110, PERIOD - x);
+      list.push({ x, w, h: 70 + next() * 120 });
+      x += w * (0.55 + next() * 0.2);
+    } else if (theme.scenery === 'dunes') {
+      const w = Math.min(120 + next() * 160, PERIOD - x);
+      list.push({ x, w, h: 40 + next() * 70 });
+      x += w * (0.6 + next() * 0.2);
+    } else {
+      const w = Math.min(40 + next() * 70, PERIOD - x);
+      list.push({ x, w, h: 60 + next() * 130 });
+      x += w + next() * 12;
+    }
   }
   return list;
 }
 
 export class World {
-  constructor() {
+  constructor(theme = WORLDS[0]) {
     this.w = 480;
     this.h = 420;
     this.g = 310;
@@ -64,7 +56,15 @@ export class World {
     this.clouds = [];
     this.stars = [];
     this.key = -1;
-    this.buildings = buildSkyline();
+    this.setTheme(theme);
+  }
+
+  setTheme(theme) {
+    this.theme = theme;
+    this.colors = colorsFor(theme);
+    this.buildings = buildScenery(theme);
+    this.key = -1;
+    if (this.h) this.refresh();
   }
 
   setDark(dark) {
@@ -110,7 +110,7 @@ export class World {
     const p = {};
     const raw = {};
     for (const name of KEYS) {
-      let c = mixColor(COLORS.day[name], COLORS.night[name], q);
+      let c = mixColor(this.colors.day[name], this.colors.night[name], q);
       if (name === 'skyBottom' || name === 'sun') c = tintColor(c, WARM, dusk * (name === 'sun' ? 0.25 : 0.1));
       raw[name] = c;
       p[name] = toCss(c);
@@ -179,16 +179,30 @@ export class World {
 
     ctx.fillStyle = p.far;
     const offset = this.farX % PERIOD;
+    const kind = this.theme.scenery;
     for (let base = -offset; base < w; base += PERIOD) {
       for (const b of this.buildings) {
         const x = base + b.x;
         if (x > w) break;
         if (x + b.w < 0) continue;
-        ctx.fillRect(x, g - b.h, b.w, b.h + 2);
+        if (kind === 'peaks') {
+          ctx.beginPath();
+          ctx.moveTo(x, g + 2);
+          ctx.lineTo(x + b.w / 2, g - b.h);
+          ctx.lineTo(x + b.w, g + 2);
+          ctx.closePath();
+          ctx.fill();
+        } else if (kind === 'dunes') {
+          ctx.beginPath();
+          ctx.ellipse(x + b.w / 2, g + 2, b.w / 2, b.h, 0, Math.PI, 0);
+          ctx.fill();
+        } else {
+          ctx.fillRect(x, g - b.h, b.w, b.h + 2);
+        }
       }
     }
 
-    const [base, a1, a2, f1, f2] = HILLS;
+    const [base, a1, a2, f1, f2] = this.theme.hills;
     ctx.fillStyle = p.mid;
     ctx.beginPath();
     ctx.moveTo(-10, g + 2);

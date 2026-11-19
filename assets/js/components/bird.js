@@ -1,4 +1,5 @@
 import { clamp, lerp } from '../core/utils.js';
+import { drawHat } from './hats.js';
 
 export const BIRD_RADIUS = 12;
 export const GRAVITY = 1500;
@@ -20,6 +21,7 @@ export class Bird {
     this.wing = 0;
     this.squash = 0;
     this.alive = true;
+    this.hat = this.hat || 'hat:none';
   }
 
   flap() {
@@ -113,6 +115,8 @@ export class Bird {
       ctx.lineTo(5, -2);
       ctx.stroke();
     }
+
+    drawHat(ctx, this.hat);
 
     ctx.fillStyle = palette.scarf;
     ctx.beginPath();

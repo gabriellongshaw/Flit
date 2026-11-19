@@ -8,11 +8,17 @@ import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { initAudio } from '../core/audio.js';
 import { getBest } from '../core/storage.js';
 import { clamp } from '../core/utils.js';
+import { paletteFor } from '../core/cosmetics.js';
+import { profile } from '../core/profile.js';
+import { mountAccount } from '../components/account.js';
+import { currentLook } from '../components/look.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   detectTouch();
   initPageFadeIn();
   initAudio(1);
+  profile.init();
+  mountAccount(document.getElementById('account'));
   mountSound(document.querySelector('.home-nav'));
   mountVersion(document.querySelector('.credits-container'), { href: 'https://github.com/gabriellongshaw/Flit/releases' });
 
@@ -21,12 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const canvas = document.getElementById('home-canvas');
   const ctx = canvas.getContext('2d');
-  const world = new World();
+  let look = currentLook();
+  const world = new World(look.world);
   world.bindSky(mode => {
     document.documentElement.dataset.sky = mode;
   });
   world.setDark(isDark());
   const bird = new Bird();
+  bird.hat = look.hat;
+  let basePalette;
   const speed = 150;
   let view;
   let palette;
@@ -37,7 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function resize() {
     view = fitStage(canvas);
-    palette = readPalette();
+    basePalette = readPalette();
+    palette = paletteFor(basePalette, look);
     world.resize(view.viewW, view.viewH, view.groundY);
     bird.x = clamp(view.viewW * 0.18, 70, 170);
     bird.y = hoverY();
@@ -52,24 +62,36 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.setTransform(view.pxScale, 0, 0, view.pxScale, 0, 0);
     world.draw(ctx);
     world.drawGround(ctx);
-    bird.draw(ctx, palette);
+    bird.draw(ctx, look.skin.rainbow ? paletteFor(basePalette, look, time) : palette);
     requestAnimationFrame(frame);
   }
 
   resize();
   window.addEventListener('resize', resize);
+  profile.subscribe(() => {
+    const next = currentLook();
+    if (JSON.stringify(next) === JSON.stringify(look)) return;
+    look = next;
+    world.setTheme(look.world);
+    bird.hat = look.hat;
+    basePalette = readPalette();
+    palette = paletteFor(basePalette, look);
+  });
   onThemeChange(() => {
-    palette = readPalette();
+    basePalette = readPalette();
+    palette = paletteFor(basePalette, look);
     world.setDark(isDark());
   });
   requestAnimationFrame(frame);
 
-  const play = document.getElementById('play-btn');
-  play.addEventListener('click', e => {
-    e.preventDefault();
-    navigateTo(play.getAttribute('href'));
-  });
-  play.addEventListener('touchstart', () => play.classList.add('hover'), { passive: true });
-  play.addEventListener('touchend', () => play.classList.remove('hover'), { passive: true });
-  play.addEventListener('touchcancel', () => play.classList.remove('hover'), { passive: true });
+  for (const id of ['play-btn', 'shop-btn', 'board-btn']) {
+    const link = document.getElementById(id);
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      navigateTo(link.getAttribute('href'));
+    });
+    link.addEventListener('touchstart', () => link.classList.add('hover'), { passive: true });
+    link.addEventListener('touchend', () => link.classList.remove('hover'), { passive: true });
+    link.addEventListener('touchcancel', () => link.classList.remove('hover'), { passive: true });
+  }
 });

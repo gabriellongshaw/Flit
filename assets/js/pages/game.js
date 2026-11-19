@@ -5,6 +5,7 @@ import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { countTo, hideEl, showEl } from '../core/motion.js';
 import { initAudio, audio } from '../core/audio.js';
 import { getBest, saveBest } from '../core/storage.js';
+import { profile } from '../core/profile.js';
 
 const $ = id => document.getElementById(id);
 
@@ -12,7 +13,18 @@ document.addEventListener('DOMContentLoaded', () => {
   detectTouch();
   initPageFadeIn();
   initAudio(0.6);
+  profile.init();
   $('pause-btn').before(mountSound(document.querySelector('.hud-right'), { className: 'icon-button' }));
+
+  const coinPill = $('coin-pill');
+  const coinEl = $('coin-count');
+  const showCoins = extra => {
+    coinPill.classList.toggle('hidden', !profile.ready);
+    coinEl.textContent = profile.state.coins + extra;
+  };
+  profile.subscribe(() => {
+    if (game.state !== 'playing' && game.state !== 'paused') showCoins(0);
+  });
 
   const scoreEl = $('score');
   const bestEl = $('best');
@@ -28,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     best: getBest(),
     onScore(score) {
       scoreEl.textContent = score;
+      if (score > 0 && game.state === 'playing') showCoins(score);
       if (score > 0) {
         scoreEl.classList.remove('bump');
         void scoreEl.offsetWidth;
@@ -36,11 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     onOver(result) {
       if (result.isBest) saveBest(result.best);
+      const earned = profile.recordRun({ score: result.score, flaps: result.flaps }) ? result.score : 0;
       bestEl.textContent = `Best ${result.best}`;
       audio.duck(0.2);
       $('over-score').textContent = result.score;
       $('over-best').textContent = result.best;
-      $('over-flaps').textContent = result.flaps;
+      $('over-coins').textContent = earned;
       $('over-badge').classList.toggle('hidden', !result.isBest);
       overReady = false;
       overTimer = setTimeout(() => {
@@ -49,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         overReady = true;
         countTo($('over-score'), result.score, { duration: 650 });
         countTo($('over-best'), result.best, { duration: 650 });
-        countTo($('over-flaps'), result.flaps, { duration: 650 });
+        countTo($('over-coins'), earned, { duration: 650 });
       }, 600);
     }
   });
@@ -61,7 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
     hideEl(pauseOverlay);
     hideEl(overOverlay);
     audio.duck(0.6);
+    profile.beginRun();
     game.start();
+    showCoins(0);
   }
 
   function pauseGame() {
@@ -171,6 +187,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.addEventListener('resize', () => game.resize());
+  let lookKey = JSON.stringify(profile.state.equipped);
+  profile.subscribe(() => {
+    const next = JSON.stringify(profile.state.equipped);
+    if (next === lookKey) return;
+    lookKey = next;
+    if (game.state === 'ready') game.setLook();
+  });
+  showCoins(0);
   onThemeChange(() => game.setPalette());
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) return;
