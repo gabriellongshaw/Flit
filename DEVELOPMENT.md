@@ -45,7 +45,7 @@ Flit has its own Firebase project (`flit-ea05c`) with its own Firestore collecti
 1. In Firebase, enable Anonymous and Google sign-in, and add the domain that hosts Flit under Authentication, Settings, Authorized domains.
 2. Create a service account key (Project settings, Service accounts, Generate new private key).
 3. Create a Vercel project from this repo (it deploys `api/game.js`) and add the key's JSON as the `FIREBASE_SERVICE_ACCOUNT` environment variable.
-4. `API_URL` in `assets/js/core/profile.js` uses `/api/game` on the same site when deployed, so nothing to set. Locally it calls the hosted API.
+4. Set `API_URL` at the top of `assets/js/core/profile.js` to that project's `/api/game` address (currently `https://flit-tau.vercel.app/api/game`). The game itself is served from a different domain, so this must be the full address, not a relative path.
 5. Check `ORIGINS` at the top of `api/game.js` lists the site that serves the game.
 
 The server checks every run before paying coins: the run must come from a signed token, the score cannot exceed what is possible in the elapsed time, the flap count must be plausible, and a token cannot be replayed. Prices are read from `cosmetics.js` on the server, never from the client.
