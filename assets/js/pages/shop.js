@@ -7,6 +7,7 @@ import { drawHat } from '../components/hats.js';
 import { mountAccount, signInFlow, showToast } from '../components/account.js';
 import { mountSound } from '../components/sound.js';
 import { readPalette, onThemeChange, detectTouch, isDark } from '../core/theme.js';
+import { initGraphics } from '../core/graphics.js';
 import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { initAudio, audio } from '../core/audio.js';
 import { bump } from '../core/motion.js';
@@ -20,6 +21,7 @@ const PREVIEW_H = 170;
 
 document.addEventListener('DOMContentLoaded', () => {
   detectTouch();
+  initGraphics();
   initPageFadeIn();
   profile.init();
   initAudio(1);

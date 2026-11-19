@@ -31,7 +31,10 @@ const defaults = () => ({
   runs: 0,
   owned: [...DEFAULT_OWNED],
   equipped: { ...DEFAULT_EQUIPPED },
-  publicBoard: true
+  publicBoard: true,
+  username: null,
+  displayName: null,
+  photoMode: 'google'
 });
 
 function sanitize(raw) {
@@ -53,7 +56,10 @@ function sanitize(raw) {
     runs: whole(data.runs),
     owned: [...owned],
     equipped,
-    publicBoard: data.publicBoard !== false
+    publicBoard: data.publicBoard !== false,
+    username: typeof data.username === 'string' ? data.username.toLowerCase() : null,
+    displayName: cleanName(data.displayName),
+    photoMode: data.photoMode === 'none' ? 'none' : 'google'
   };
 }
 
@@ -198,7 +204,11 @@ export const profile = {
     return cloudReady && !!state.uid;
   },
   get avatar() {
-    return state.photo;
+    return state.photoMode === 'none' ? null : state.photo;
+  },
+
+  get label() {
+    return state.username || state.displayName || state.name;
   },
 
   subscribe(fn) {
@@ -339,6 +349,18 @@ export const profile = {
     call('setPublicBoard', { on: !!on })
       .then(out => applyServer(out.profile))
       .catch(() => refresh());
+  },
+
+  async update(action, data) {
+    if (!cloudReady || !state.uid) {
+      const err = new Error('signed-out');
+      err.code = 'signed-out';
+      throw err;
+    }
+    const uid = state.uid;
+    const out = await call(action, data);
+    if (out.profile && state.uid === uid) applyServer(out.profile);
+    return out;
   },
 
   async fetchBoard(scope) {

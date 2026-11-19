@@ -1,0 +1,391 @@
+const KEY = 'flit:graphics';
+const VERDICT_KEY = 'flit:graphics-verdict';
+const MODES = ['auto', 'on', 'off'];
+const LEVELS = ['full', 'lite', 'off'];
+const LAYERS = {
+  full: [0.2, 0.36, 0.47, 0.85, 1.44, 2.07, 2.88, 3.83, 4.95, 6.75],
+  lite: [0.85, 2.88, 6.75]
+};
+const TTL = 30 * 60 * 1000;
+const AWAY = 60 * 1000;
+const LOW_BATTERY = 0.2;
+const CAPPED_MS = 26;
+const MIN_FRAMES = 12;
+const BASE_MS = 360;
+const PROBE_MS = 480;
+const RECHECK_MS = 45 * 1000;
+const RECHECK_MAX = 10 * 60 * 1000;
+const MAX_BACKOFF = 4;
+const SETTLE_AWAY = 5 * 1000;
+const MASK = 'linear-gradient(to bottom, #000 40%, transparent)';
+
+const listeners = new Set();
+const pending = new Set();
+
+function read(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function write(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function remove(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+}
+
+function loadVerdict() {
+  try {
+    const saved = JSON.parse(read(VERDICT_KEY));
+    if (saved && LEVELS.includes(saved.level) && Date.now() - saved.at < TTL) return saved.level;
+  } catch {}
+  return null;
+}
+
+let mode = MODES.includes(read(KEY)) ? read(KEY) : 'auto';
+let verdict = loadVerdict();
+let baseline = 0;
+let lowBattery = false;
+let started = false;
+let probing = false;
+let hiddenAt = 0;
+let watching = false;
+let lastScroll = 0;
+let cooldown = 0;
+let timer = 0;
+let backoff = 0;
+let lastTest = 0;
+
+remove('flit:graphics-auto');
+
+function constrained() {
+  const connection = navigator.connection;
+  if (connection && connection.saveData) return true;
+  return window.matchMedia('(prefers-reduced-transparency: reduce)').matches;
+}
+
+function hint() {
+  const memory = navigator.deviceMemory || 8;
+  const cores = navigator.hardwareConcurrency || 8;
+  if (memory <= 2 || cores <= 2) return 'off';
+  if (memory <= 4 || cores <= 4) return 'lite';
+  return 'full';
+}
+
+function level() {
+  if (mode === 'on') return 'full';
+  if (mode === 'off') return 'off';
+  if (lowBattery || constrained()) return 'off';
+  return verdict || hint();
+}
+
+function apply() {
+  const next = level();
+  const root = document.documentElement;
+  root.classList.toggle('no-blur', next === 'off');
+  root.classList.toggle('lite-blur', next === 'lite');
+  listeners.forEach(fn => fn());
+}
+
+function setVerdict(next) {
+  verdict = next;
+  write(VERDICT_KEY, JSON.stringify({ level: next, at: Date.now() }));
+  apply();
+}
+
+function resetVerdict() {
+  verdict = null;
+  remove(VERDICT_KEY);
+  apply();
+}
+
+function pick(values, share) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * share))];
+}
+
+function healthy(gaps, base) {
+  if (gaps.length < MIN_FRAMES) return false;
+  return pick(gaps, 0.5) <= base * 1.3 + 1 && pick(gaps, 0.9) <= base * 1.7 + 2;
+}
+
+function interrupt() {
+  pending.forEach(fn => fn());
+}
+
+function sample(duration, step) {
+  return new Promise(resolve => {
+    const gaps = [];
+    let last = 0;
+    let begin = 0;
+    let frame = 0;
+
+    const end = result => {
+      cancelAnimationFrame(frame);
+      pending.delete(abort);
+      resolve(result);
+    };
+    const abort = () => end(null);
+    pending.add(abort);
+
+    const tick = now => {
+      if (!begin) begin = now;
+      if (last) gaps.push(now - last);
+      last = now;
+      step(now);
+      if (now - begin >= duration) {
+        end(gaps.slice(3));
+        return;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+  });
+}
+
+function buildStage() {
+  const root = document.createElement('div');
+  root.setAttribute('aria-hidden', 'true');
+  root.style.cssText =
+    'position:fixed;top:0;left:0;right:0;height:96px;z-index:2147483647;pointer-events:none;opacity:0.02;overflow:hidden';
+  const field = document.createElement('div');
+  field.style.cssText =
+    'position:absolute;top:0;left:0;width:200%;height:100%;will-change:transform;background:repeating-linear-gradient(90deg,var(--bg,#808080) 0 12px,color-mix(in srgb,var(--bg,#808080) 88%,#808080) 12px 24px)';
+  const glass = document.createElement('div');
+  glass.style.cssText = 'position:absolute;inset:0';
+  root.append(field, glass);
+  document.body.appendChild(root);
+  return { root, field, glass };
+}
+
+function fillGlass(glass, name) {
+  glass.replaceChildren(
+    ...LAYERS[name].map(px => {
+      const layer = document.createElement('i');
+      layer.style.cssText = `position:absolute;inset:0;-webkit-backdrop-filter:blur(${px}px);backdrop-filter:blur(${px}px);-webkit-mask-image:${MASK};mask-image:${MASK}`;
+      return layer;
+    })
+  );
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function measureBase(move) {
+  let best = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const gaps = await sample(BASE_MS, move);
+    if (!gaps) return null;
+    const median = gaps.length < MIN_FRAMES ? Infinity : pick(gaps, 0.5);
+    if (best === null || median < best) best = median;
+    if (best <= CAPPED_MS) break;
+    await wait(1200);
+  }
+  return best;
+}
+
+async function probe() {
+  if (probing || mode !== 'auto' || document.hidden || !document.body) return false;
+  probing = true;
+  const stage = buildStage();
+  const move = now => {
+    stage.field.style.transform = `translate3d(${-((now / 6) % 24)}px,0,0)`;
+  };
+  try {
+    const base = await measureBase(move);
+    if (base === null) return false;
+    if (base > CAPPED_MS) {
+      setVerdict('off');
+      return true;
+    }
+    baseline = base;
+    for (const name of ['full', 'lite']) {
+      fillGlass(stage.glass, name);
+      const gaps = await sample(PROBE_MS, move);
+      if (!gaps) return false;
+      if (healthy(gaps, base)) {
+        setVerdict(name);
+        return true;
+      }
+    }
+    setVerdict('off');
+    return true;
+  } finally {
+    stage.root.remove();
+    probing = false;
+    lastTest = Date.now();
+  }
+}
+
+function schedule(delay, tries = 3) {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    if (mode !== 'auto' || document.hidden) return;
+    if (lowBattery || constrained()) {
+      arm();
+      return;
+    }
+    const before = LEVELS.indexOf(verdict);
+    const done = await probe();
+    if (!done && tries > 1) {
+      schedule(4000, tries - 1);
+      return;
+    }
+    if (done) {
+      const after = LEVELS.indexOf(verdict);
+      backoff = before >= 0 && after >= before ? Math.min(backoff + 1, MAX_BACKOFF) : 0;
+    }
+    arm();
+  }, delay);
+}
+
+function arm() {
+  if (mode !== 'auto' || verdict === 'full') return;
+  schedule(Math.min(RECHECK_MS * 2 ** backoff, RECHECK_MAX));
+}
+
+function retest() {
+  backoff = 0;
+  schedule(600);
+}
+
+function judge(gaps) {
+  if (gaps.length < 10) return;
+  const limit = Math.max((baseline || 16.7) * 1.6, 24);
+  const slow = gaps.filter(gap => gap > limit).length;
+  if (slow / gaps.length <= 0.3) return;
+  const next = LEVELS[LEVELS.indexOf(level()) + 1];
+  if (!next) return;
+  backoff = Math.min(backoff + 1, MAX_BACKOFF);
+  setVerdict(next);
+  arm();
+}
+
+function onScroll() {
+  lastScroll = performance.now();
+  if (watching || probing || mode !== 'auto' || level() === 'off' || lastScroll < cooldown) return;
+  watching = true;
+  const begin = lastScroll;
+  const gaps = [];
+  let last = 0;
+
+  const tick = now => {
+    if (last) gaps.push(now - last);
+    last = now;
+    if (now - lastScroll < 160 && now - begin < 1500 && !document.hidden) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    watching = false;
+    cooldown = now + 3000;
+    judge(gaps.slice(1));
+  };
+  requestAnimationFrame(tick);
+}
+
+function onVisibility() {
+  if (document.hidden) {
+    hiddenAt = Date.now();
+    interrupt();
+    return;
+  }
+  if (mode !== 'auto') return;
+  const away = hiddenAt ? Date.now() - hiddenAt : 0;
+  hiddenAt = 0;
+  if (away > AWAY || (verdict !== 'full' && away > SETTLE_AWAY)) retest();
+  else arm();
+}
+
+function onReturn(event) {
+  if (event.type === 'pageshow' && !event.persisted) return;
+  if (mode !== 'auto' || verdict === 'full' || document.hidden || probing) return;
+  if (Date.now() - lastTest > SETTLE_AWAY * 2) retest();
+}
+
+function watchBattery() {
+  if (typeof navigator.getBattery !== 'function') return;
+  navigator
+    .getBattery()
+    .then(battery => {
+      const update = () => {
+        const next = !battery.charging && battery.level <= LOW_BATTERY;
+        if (next === lowBattery) return;
+        lowBattery = next;
+        apply();
+        if (!next && mode === 'auto') retest();
+      };
+      battery.addEventListener('chargingchange', update);
+      battery.addEventListener('levelchange', update);
+      update();
+    })
+    .catch(() => {});
+}
+
+function watchEnvironment() {
+  const changed = () => {
+    apply();
+    if (mode === 'auto') retest();
+  };
+  window.matchMedia('(prefers-reduced-transparency: reduce)').addEventListener?.('change', changed);
+  navigator.connection?.addEventListener?.('change', changed);
+}
+
+export const graphics = {
+  get mode() {
+    return mode;
+  },
+  get level() {
+    return level();
+  },
+  get blur() {
+    return level() !== 'off';
+  },
+  setMode(next) {
+    if (!MODES.includes(next) || next === mode) return;
+    mode = next;
+    write(KEY, next);
+    clearTimeout(timer);
+    backoff = 0;
+    if (next === 'auto') {
+      resetVerdict();
+      schedule(300);
+      return;
+    }
+    apply();
+  },
+  subscribe(fn) {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+  }
+};
+
+apply();
+
+export function initGraphics() {
+  if (started) return;
+  started = true;
+  apply();
+  watchBattery();
+  watchEnvironment();
+  ['pointerdown', 'keydown', 'touchstart'].forEach(type =>
+    document.addEventListener(type, interrupt, { capture: true, passive: true })
+  );
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('focus', onReturn);
+  window.addEventListener('pageshow', onReturn);
+  lastTest = Date.now();
+  document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+  if (mode !== 'auto' || verdict === 'full') return;
+  const start = () => schedule(verdict ? 3000 : 900);
+  if (document.readyState === 'complete') start();
+  else window.addEventListener('load', start, { once: true });
+}

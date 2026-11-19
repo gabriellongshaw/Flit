@@ -4,6 +4,7 @@ import { fitStage } from '../components/stage.js';
 import { mountSound } from '../components/sound.js';
 import { mountVersion } from '../components/version.js';
 import { readPalette, onThemeChange, detectTouch, isDark } from '../core/theme.js';
+import { initGraphics } from '../core/graphics.js';
 import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { initAudio } from '../core/audio.js';
 import { getBest } from '../core/storage.js';
@@ -15,6 +16,7 @@ import { currentLook } from '../components/look.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   detectTouch();
+  initGraphics();
   initPageFadeIn();
   initAudio(1);
   profile.init();

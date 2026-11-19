@@ -1,6 +1,7 @@
 import { Game } from '../components/game.js';
 import { mountSound } from '../components/sound.js';
 import { onThemeChange, detectTouch } from '../core/theme.js';
+import { initGraphics } from '../core/graphics.js';
 import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { countTo, hideEl, showEl } from '../core/motion.js';
 import { initAudio, audio } from '../core/audio.js';
@@ -11,6 +12,7 @@ const $ = id => document.getElementById(id);
 
 document.addEventListener('DOMContentLoaded', () => {
   detectTouch();
+  initGraphics();
   initPageFadeIn();
   initAudio(0.6);
   profile.init();

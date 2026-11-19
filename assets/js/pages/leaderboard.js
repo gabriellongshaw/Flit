@@ -3,6 +3,7 @@ import { msUntilReset } from '../core/week.js';
 import { mountAccount, signInFlow } from '../components/account.js';
 import { mountSound } from '../components/sound.js';
 import { detectTouch } from '../core/theme.js';
+import { initGraphics } from '../core/graphics.js';
 import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { initAudio } from '../core/audio.js';
 
@@ -20,6 +21,7 @@ function formatTime(ms) {
 
 document.addEventListener('DOMContentLoaded', () => {
   detectTouch();
+  initGraphics();
   initPageFadeIn();
   profile.init();
   initAudio(1);

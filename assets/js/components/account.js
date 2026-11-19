@@ -1,5 +1,6 @@
 import { profile } from '../core/profile.js';
 import { hideEl, showEl } from '../core/motion.js';
+import { navigateTo } from '../core/transition.js';
 
 let toastEl = null;
 let toastTimer = 0;
@@ -44,7 +45,8 @@ const GOOGLE_ICON =
 const USER_ICON =
   '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
 
-export function mountAccount(el) {
+export function mountAccount(el, root = '../') {
+  const onProfile = /\/profile\/?$/.test(window.location.pathname);
   let lastError = null;
   let mode = null;
   let chip = null;
@@ -74,6 +76,17 @@ export function mountAccount(el) {
     button.append(avatar, label);
     const menu = document.createElement('div');
     menu.className = 'account-menu hidden';
+    if (!onProfile) {
+      const mine = document.createElement('button');
+      mine.className = 'account-menu-item';
+      mine.textContent = 'Profile';
+      mine.addEventListener('click', e => {
+        e.stopPropagation();
+        hideEl(menu);
+        navigateTo(`${root}profile/`);
+      });
+      menu.appendChild(mine);
+    }
     const out = document.createElement('button');
     out.className = 'account-menu-item';
     out.textContent = 'Sign out';
@@ -111,7 +124,8 @@ export function mountAccount(el) {
 
   function render() {
     const { status, syncing, error } = profile.session;
-    const { uid, anon, name } = profile.state;
+    const { uid, anon } = profile.state;
+    const name = profile.state.displayName || profile.state.username || profile.state.name;
     el.classList.toggle('hidden', status === 'unavailable' && (!uid || anon));
     const signedIn = status === 'in' || ((status === 'unavailable' || status === 'loading') && uid && !anon);
     const next = signedIn ? 'chip' : 'button';

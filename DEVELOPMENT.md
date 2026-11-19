@@ -30,6 +30,14 @@ Flit follows the same layout as Dash, with only what a one-button game needs.
 
 The best score is saved in `localStorage` as `flit:best`, the sound settings as `flit:sound`, and a cached copy of the profile as `flit:profile` (the server copy replaces it on every sync).
 
+## Blur and graphics
+
+Page headers use a layered backdrop blur, copied from Dash. `core/graphics.js` picks Full, Lite or Off in Auto mode by measuring frame rate (and battery, data saver and device hints), and the speaker menu has a Blur setting (Auto, On, Off) stored as `flit:graphics`. The CSS classes are `lite-blur` and `no-blur` on `<html>`.
+
+## Profile
+
+`profile/index.html` lets signed-in players set a username (unique, once a day), a display name, whether the Google photo is shown, and whether they appear on the leaderboard. The board shows the username, then the display name, then the Google name. Usernames are reserved in the `flitUsernames` collection.
+
 ## Online setup
 
 Flit shares Dash's Firebase project but uses its own Firestore collections (`flitProfiles`, `flitBoard`, `flitWeeks`). All reads and writes go through the API, so no Firestore rule changes are needed.

@@ -18,6 +18,12 @@ const PAGE = 25;
 
 const ANON_ACTIONS = new Set(['syncProfile', 'startRun', 'submitRun', 'buyItem', 'equipItem', 'getBoard']);
 
+export const USERNAME = /^[a-z0-9_]{3,16}$/;
+const RESERVED = new Set(['admin', 'administrator', 'flit', 'dash', 'dev', 'developer', 'gabriel', 'moderator', 'mod', 'official', 'staff', 'support', 'system', 'owner']);
+const NAME_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const MAX_DISPLAY_NAME = 24;
+const PHOTO_MODES = ['google', 'none'];
+
 class Fail extends Error {
   constructor(status, code) {
     super(code);
@@ -37,7 +43,11 @@ const defaults = () => ({
   equipped: { ...DEFAULT_EQUIPPED },
   publicBoard: true,
   lastRun: 0,
-  lastCoins: 0
+  lastCoins: 0,
+  username: null,
+  usernameAt: 0,
+  displayName: null,
+  photoMode: 'google'
 });
 
 function sanitize(raw) {
@@ -61,11 +71,32 @@ function sanitize(raw) {
     equipped,
     publicBoard: data.publicBoard !== false,
     lastRun: whole(data.lastRun),
-    lastCoins: whole(data.lastCoins)
+    lastCoins: whole(data.lastCoins),
+    username: typeof data.username === 'string' && USERNAME.test(data.username.toLowerCase()) ? data.username.toLowerCase() : null,
+    usernameAt: whole(data.usernameAt),
+    displayName: cleanDisplayName(data.displayName),
+    photoMode: PHOTO_MODES.includes(data.photoMode) ? data.photoMode : 'google'
   };
 }
 
-const view = p => ({ coins: p.coins, best: p.best, weekBest: p.weekBest, runs: p.runs, owned: p.owned, equipped: p.equipped, publicBoard: p.publicBoard });
+export function cleanDisplayName(value) {
+  if (typeof value !== 'string') return null;
+  const name = value.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, MAX_DISPLAY_NAME);
+  return name || null;
+}
+
+const view = p => ({
+  coins: p.coins,
+  best: p.best,
+  weekBest: p.weekBest,
+  runs: p.runs,
+  owned: p.owned,
+  equipped: p.equipped,
+  publicBoard: p.publicBoard,
+  username: p.username,
+  displayName: p.displayName,
+  photoMode: p.photoMode
+});
 
 const cleanPhoto = v => {
   try {
@@ -106,6 +137,9 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
   const profileRef = uid => db.doc(`flitProfiles/${uid}`);
   const allTimeRef = uid => db.doc(`flitBoard/${uid}`);
   const weekRef = (week, uid) => db.doc(`flitWeeks/${week}/entries/${uid}`);
+  const nameRef = key => db.doc(`flitUsernames/${key}`);
+  const boardName = (user, profile) => profile.username || profile.displayName || user.name;
+  const boardPhoto = (user, profile) => (profile.photoMode === 'google' ? cleanPhoto(user.photo) : null);
   const entry = (name, score, photo) => ({ name: shortName(name), score, photo, updatedAt: FieldValue.serverTimestamp() });
 
   const sign = (uid, started) => createHmac('sha256', secret()).update(`${uid}.${started}`).digest('hex');
@@ -131,11 +165,12 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
 
   async function publish(user, profile) {
     if (user.anon || !profile.publicBoard) return true;
-    const photo = cleanPhoto(user.photo);
+    const photo = boardPhoto(user, profile);
+    const name = boardName(user, profile);
     const writes = [];
-    if (profile.best > 0) writes.push(allTimeRef(user.uid).set(entry(user.name, profile.best, photo)));
+    if (profile.best > 0) writes.push(allTimeRef(user.uid).set(entry(name, profile.best, photo)));
     const week = weekScore(profile);
-    if (week > 0) writes.push(weekRef(weekKey(now()), user.uid).set(entry(user.name, week, photo)));
+    if (week > 0) writes.push(weekRef(weekKey(now()), user.uid).set(entry(name, week, photo)));
     const results = await Promise.allSettled(writes);
     results.forEach(r => r.status === 'rejected' && console.error('board write failed', r.reason));
     return results.every(r => r.status === 'fulfilled');
@@ -226,6 +261,50 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
       return { profile: view(profile) };
     },
 
+    async setUsername(user, body) {
+      const name = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
+      if (!USERNAME.test(name)) throw new Fail(400, 'username');
+      if (RESERVED.has(name)) throw new Fail(409, 'taken');
+      const profile = await db.runTransaction(async tx => {
+        const snap = await tx.get(profileRef(user.uid));
+        if (!snap.exists) throw new Fail(409, 'no-profile');
+        const keySnap = await tx.get(nameRef(name));
+        if (keySnap.exists && keySnap.data().uid !== user.uid) throw new Fail(409, 'taken');
+        const raw = snap.data();
+        const me = sanitize(raw);
+        if (me.username === name) return me;
+        if (me.username && now() - me.usernameAt < NAME_COOLDOWN_MS) throw new Fail(429, 'cooldown');
+        if (me.username) tx.delete(nameRef(me.username));
+        tx.set(nameRef(name), { uid: user.uid });
+        tx.update(profileRef(user.uid), { username: name, usernameAt: now(), updatedAt: FieldValue.serverTimestamp() });
+        return { ...me, username: name };
+      });
+      await publish(user, profile);
+      return { profile: view(profile) };
+    },
+
+    async setDisplayName(user, body) {
+      const name = cleanDisplayName(body.displayName);
+      const profile = await db.runTransaction(async tx => {
+        const current = await load(tx, user.uid);
+        tx.update(profileRef(user.uid), { displayName: name, updatedAt: FieldValue.serverTimestamp() });
+        return { ...current, displayName: name };
+      });
+      await publish(user, profile);
+      return { profile: view(profile) };
+    },
+
+    async setPhoto(user, body) {
+      if (!PHOTO_MODES.includes(body.mode)) throw new Fail(400, 'photo');
+      const profile = await db.runTransaction(async tx => {
+        const current = await load(tx, user.uid);
+        tx.update(profileRef(user.uid), { photoMode: body.mode, updatedAt: FieldValue.serverTimestamp() });
+        return { ...current, photoMode: body.mode };
+      });
+      await publish(user, profile);
+      return { profile: view(profile) };
+    },
+
     async getBoard(user, body) {
       const week = body.scope === 'all' ? null : weekKey(now());
       const col = week ? db.collection(`flitWeeks/${week}/entries`) : db.collection('flitBoard');
@@ -245,7 +324,7 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
         const score = mine ? (week ? weekScore(mine) : mine.best) : 0;
         if (mine && mine.publicBoard && score > 0) {
           const count = await col.where('score', '>', score).count().get();
-          me = { rank: count.data().count + 1, score, name: shortName(user.name), photo: cleanPhoto(user.photo) };
+          me = { rank: count.data().count + 1, score, name: shortName(boardName(user, mine)), photo: boardPhoto(user, mine) };
         }
       }
       return { entries, me, week };
