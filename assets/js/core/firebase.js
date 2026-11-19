@@ -1,13 +1,13 @@
 let cached = null;
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyD3xzWI80MYUkgK6QhVXbgQV4OU312JYDs',
-  authDomain: 'dash-game-5bdf1.firebaseapp.com',
-  projectId: 'dash-game-5bdf1',
-  storageBucket: 'dash-game-5bdf1.firebasestorage.app',
-  messagingSenderId: '290554058051',
-  appId: '1:290554058051:web:8e8d480a7773ea859d4bf6',
-  measurementId: 'G-9DNJ91WJFK'
+  apiKey: "AIzaSyDs5M-D_3MmCjj2CbeiCdpmlTTR-IHzE10",
+  authDomain: "flit-ea05c.firebaseapp.com",
+  projectId: "flit-ea05c",
+  storageBucket: "flit-ea05c.firebasestorage.app",
+  messagingSenderId: "469473343903",
+  appId: "1:469473343903:web:0fc8816ab0738032bfa5aa",
+  measurementId: "G-XDLSJ6RKK5"
 };
 
 export function loadFirebase() {
