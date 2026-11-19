@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPageFadeIn();
   initAudio(1);
   profile.init();
-  mountAccount(document.getElementById('account'));
+  mountAccount(document.getElementById('account'), './');
   mountSound(document.querySelector('.home-nav'));
   mountVersion(document.querySelector('.credits-container'), { href: 'https://github.com/gabriellongshaw/Flit/releases' });
 
