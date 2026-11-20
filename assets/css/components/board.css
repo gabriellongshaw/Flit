@@ -302,3 +302,11 @@
   background: var(--card-bg);
   box-shadow: 0 1px 4px rgba(16, 38, 27, 0.12);
 }
+
+#visibility-btn {
+  align-self: center;
+  width: auto;
+  max-width: 440px;
+  white-space: normal;
+  text-align: center;
+}

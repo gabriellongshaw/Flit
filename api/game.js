@@ -6,7 +6,7 @@ import { DEFAULT_EQUIPPED, DEFAULT_OWNED, findItem, kindOf } from '../assets/js/
 import { weekKey } from '../assets/js/core/week.js';
 import { cleanPrivacy, defaultPrivacy } from '../assets/js/core/privacy.js';
 import { allQuests, applyRun, cleanQuests, freshQuests, isClaimed, markClaimed, progressOf } from '../assets/js/core/quests.js';
-import { USERNAME, cleanDisplayName, createSocial, pickPhoto, profileFixups } from '../server/social.js';
+import { USERNAME, cleanDisplayName, createSocial, pickPhoto, profileFixups, validPhoto } from '../server/social.js';
 import { createAnnouncements } from '../server/announcements.js';
 import { createPolls, isAdmin } from '../server/polls.js';
 
@@ -319,7 +319,7 @@ export function createApi({ db, verify, secret, now = () => Date.now(), adminEma
         return {
           name: typeof data.name === 'string' && data.name ? data.name.slice(0, 24) : 'Player',
           score: whole(data.score),
-          photo: cleanPhoto(data.photo),
+          photo: validPhoto(data.photo) ? data.photo : cleanPhoto(data.photo),
           uid: d.id,
           me: d.id === user.uid
         };
