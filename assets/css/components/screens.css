@@ -43,6 +43,9 @@ body.leaving .page {
 .home-content > :nth-child(2) { animation-delay: 0.13s; }
 .home-content > :nth-child(3) { animation-delay: 0.21s; }
 .home-content > :nth-child(4) { animation-delay: 0.29s; }
+.home-content > :nth-child(5) { animation-delay: 0.37s; }
+.home-content > :nth-child(6) { animation-delay: 0.45s; }
+.home-content > :nth-child(7) { animation-delay: 0.53s; }
 
 #play-btn {
   animation: fadeInUp 0.55s cubic-bezier(0.33, 1, 0.68, 1) 0.21s backwards, glowPulse 2.8s ease-out 1.4s infinite;
@@ -64,14 +67,6 @@ body.leaving .page {
   margin-top: 6px;
 }
 
-.home-best {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--sky-meta);
-  transition: color 0.6s ease;
-  min-height: 1.2em;
-}
-
 .home-top {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
@@ -80,13 +75,126 @@ body.leaving .page {
   z-index: 20;
   display: flex;
   align-items: flex-start;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   pointer-events: none;
 }
 
 .home-top > * {
   pointer-events: auto;
+}
+
+.home-nav {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  container-type: inline-size;
+  container-name: homenav;
+}
+
+.nav-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  font-family: var(--font-family);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  touch-action: manipulation;
+  transition: background 0.2s ease, transform 0.15s ease;
+  animation: fadeInUp 0.5s cubic-bezier(0.33, 1, 0.68, 1) backwards;
+}
+
+.nav-button:nth-child(2) { animation-delay: 0.06s; }
+.nav-button:nth-child(3) { animation-delay: 0.12s; }
+.nav-button:nth-child(4) { animation-delay: 0.18s; }
+.nav-button:nth-child(5) { animation-delay: 0.24s; }
+
+.nav-button:hover,
+.nav-button.hover {
+  background: var(--button-secondary-bg-hover);
+}
+
+.nav-button:active {
+  transform: scale(0.95);
+}
+
+.nav-button svg {
+  flex-shrink: 0;
+  display: block;
+}
+
+.nav-label {
+  display: none;
+}
+
+.secondary-button.compact {
+  position: relative;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.88rem;
+}
+
+.badge-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--hazard);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  animation: badgePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards, badgeRing 2.2s ease-out 0.8s infinite;
+}
+
+.home-best {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--sky-meta);
+  transition: color 0.6s ease;
+  min-height: 1.2em;
+}
+
+.key-hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.key-chip {
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--meta-text);
+}
+
+.key-chip kbd {
+  font-family: var(--font-family);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--secondary-bg);
+  border-radius: 6px;
+  padding: 1px 7px;
 }
 
 .credits-container {
@@ -125,34 +233,25 @@ body.leaving .page {
 }
 
 .version-tag {
+  display: block;
+  margin: 4px auto 0;
+  color: var(--meta-text);
+  font-size: 0.74rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  text-align: center;
+  text-decoration: none;
 }
 
-span.version-tag {
-  text-decoration: none;
+.credits-link.version-tag {
+  display: inline;
+  margin: 0;
+  color: var(--ground-text);
+  font-size: inherit;
+  font-weight: inherit;
+  text-decoration: underline;
 }
 
 a.version-tag:active {
   opacity: 0.7;
-}
-.home-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-}
-
-.home-links .secondary-button {
-  padding: 0.65rem 1.3rem;
-  font-size: 0.92rem;
-}
-
-.home-links .secondary-button {
-  background: var(--card-bg);
-  box-shadow: 0 1px 0 var(--border), var(--shadow-soft);
-}
-
-.home-links .secondary-button:hover,
-.home-links .secondary-button.hover {
-  background: var(--button-secondary-bg);
 }

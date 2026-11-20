@@ -1,11 +1,20 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED, findItem, kindOf } from '../assets/js/core/cosmetics.js';
 import { weekKey } from '../assets/js/core/week.js';
+import { cleanPrivacy, defaultPrivacy } from '../assets/js/core/privacy.js';
+import { allQuests, applyRun, cleanQuests, freshQuests, isClaimed, markClaimed, progressOf } from '../assets/js/core/quests.js';
+import { USERNAME, cleanDisplayName, createSocial, pickPhoto, profileFixups } from '../server/social.js';
+import { createAnnouncements } from '../server/announcements.js';
+import { createPolls, isAdmin } from '../server/polls.js';
+
+export { USERNAME, cleanDisplayName };
 
 const ORIGINS = ['https://flit-tau.vercel.app', 'https://gabriellongshaw.co.uk', 'https://www.gabriellongshaw.co.uk'];
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
+const RELEASE_SECRET = process.env.RELEASE_SECRET || '';
 const LOCAL = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 const MIN_RUN_SECONDS = 2;
@@ -16,13 +25,9 @@ const FLAPS_BASE = 8;
 const FLAPS_PER_SECOND = 14;
 const PAGE = 25;
 
-const ANON_ACTIONS = new Set(['syncProfile', 'startRun', 'submitRun', 'buyItem', 'equipItem', 'getBoard']);
+const ANON_ACTIONS = new Set(['syncProfile', 'startRun', 'submitRun', 'claimQuest', 'buyItem', 'equipItem', 'getBoard', 'viewProfile', 'listPosts', 'listReplies', 'listAnnouncements']);
 
-export const USERNAME = /^[a-z0-9_]{3,16}$/;
-const RESERVED = new Set(['admin', 'administrator', 'flit', 'dash', 'dev', 'developer', 'gabriel', 'moderator', 'mod', 'official', 'staff', 'support', 'system', 'owner']);
-const NAME_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-const MAX_DISPLAY_NAME = 24;
-const PHOTO_MODES = ['google', 'none'];
+const PHOTO_MODES = ['google', 'custom', 'none'];
 
 class Fail extends Error {
   constructor(status, code) {
@@ -44,10 +49,14 @@ const defaults = () => ({
   publicBoard: true,
   lastRun: 0,
   lastCoins: 0,
+  quests: freshQuests(),
   username: null,
   usernameAt: 0,
   displayName: null,
-  photoMode: 'google'
+  searchable: true,
+  photoMode: 'google',
+  photoData: null,
+  privacy: defaultPrivacy()
 });
 
 function sanitize(raw) {
@@ -69,20 +78,18 @@ function sanitize(raw) {
     runs: whole(data.runs),
     owned: [...owned],
     equipped,
+    quests: cleanQuests(data.quests),
     publicBoard: data.publicBoard !== false,
     lastRun: whole(data.lastRun),
     lastCoins: whole(data.lastCoins),
     username: typeof data.username === 'string' && USERNAME.test(data.username.toLowerCase()) ? data.username.toLowerCase() : null,
     usernameAt: whole(data.usernameAt),
     displayName: cleanDisplayName(data.displayName),
-    photoMode: PHOTO_MODES.includes(data.photoMode) ? data.photoMode : 'google'
+    searchable: data.searchable !== false,
+    photoMode: PHOTO_MODES.includes(data.photoMode) ? data.photoMode : 'google',
+    photoData: typeof data.photoData === 'string' && data.photoData ? data.photoData : null,
+    privacy: cleanPrivacy(data.privacy)
   };
-}
-
-export function cleanDisplayName(value) {
-  if (typeof value !== 'string') return null;
-  const name = value.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, MAX_DISPLAY_NAME);
-  return name || null;
 }
 
 const view = p => ({
@@ -92,10 +99,14 @@ const view = p => ({
   runs: p.runs,
   owned: p.owned,
   equipped: p.equipped,
+  quests: p.quests,
   publicBoard: p.publicBoard,
   username: p.username,
   displayName: p.displayName,
-  photoMode: p.photoMode
+  searchable: p.searchable,
+  photoMode: p.photoMode,
+  photoData: p.photoData,
+  privacy: p.privacy
 });
 
 const cleanPhoto = v => {
@@ -133,13 +144,12 @@ export function checkRun(run, elapsed) {
   return null;
 }
 
-export function createApi({ db, verify, secret, now = () => Date.now() }) {
+export function createApi({ db, verify, secret, now = () => Date.now(), adminEmail = ADMIN_EMAIL, releaseSecret = RELEASE_SECRET }) {
   const profileRef = uid => db.doc(`flitProfiles/${uid}`);
   const allTimeRef = uid => db.doc(`flitBoard/${uid}`);
   const weekRef = (week, uid) => db.doc(`flitWeeks/${week}/entries/${uid}`);
-  const nameRef = key => db.doc(`flitUsernames/${key}`);
   const boardName = (user, profile) => profile.username || profile.displayName || user.name;
-  const boardPhoto = (user, profile) => (profile.photoMode === 'google' ? cleanPhoto(user.photo) : null);
+  const boardPhoto = (user, profile) => (profile.privacy.photo === 'public' ? pickPhoto({ photoMode: profile.photoMode, photoData: profile.photoData, photo: cleanPhoto(user.photo) }) : null);
   const entry = (name, score, photo) => ({ name: shortName(name), score, photo, updatedAt: FieldValue.serverTimestamp() });
 
   const sign = (uid, started) => createHmac('sha256', secret()).update(`${uid}.${started}`).digest('hex');
@@ -176,13 +186,36 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
     return results.every(r => r.status === 'fulfilled');
   }
 
+  const social = createSocial({ db, profileRef, load, sanitize, view, Fail, publish, now });
+
+  const republish = run => async (user, body) => {
+    const out = await run(user, body);
+    const profile = await db.runTransaction(tx => load(tx, user.uid));
+    await publish(user, profile);
+    return out;
+  };
+
+  const polls = createPolls({ db, load, Fail, now });
+  const { publishRelease, ...announcements } = createAnnouncements({ db, Fail, now });
+
   const actions = {
+    ...social,
+    ...polls,
+    ...announcements,
+    setDisplayName: republish(social.setDisplayName),
+    setPhoto: republish(social.setPhoto),
+    setPrivacy: republish(social.setPrivacy),
+
     async syncProfile(user) {
       const profile = await db.runTransaction(async tx => {
         const ref = profileRef(user.uid);
         const snap = await tx.get(ref);
-        const current = sanitize(snap.exists ? snap.data() : null);
-        if (!snap.exists) tx.set(ref, { ...current, name: shortName(user.name), updatedAt: FieldValue.serverTimestamp() });
+        const raw = snap.exists ? snap.data() : null;
+        const current = sanitize(raw);
+        const photo = cleanPhoto(user.photo);
+        const fix = profileFixups(raw, photo);
+        if (!snap.exists) tx.set(ref, { ...current, name: shortName(user.name), photo, displayLower: null, updatedAt: FieldValue.serverTimestamp() });
+        else if (Object.keys(fix).length) tx.update(ref, fix);
         return current;
       });
       await publish(user, profile);
@@ -210,18 +243,34 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
         }
         const week = weekKey(now());
         const weekNow = profile.weekBest.week === week ? profile.weekBest.score : 0;
+        const quests = applyRun(profile.quests, run, new Date(now()));
         const next = {
           ...profile,
           coins: profile.coins + run.score,
           runs: profile.runs + 1,
           best: Math.max(profile.best, run.score),
-          weekBest: { week, score: Math.max(weekNow, run.score) }
+          weekBest: { week, score: Math.max(weekNow, run.score) },
+          quests
         };
-        tx.update(profileRef(user.uid), { coins: next.coins, runs: next.runs, best: next.best, weekBest: next.weekBest, ...base, lastCoins: run.score });
+        tx.update(profileRef(user.uid), { coins: next.coins, runs: next.runs, best: next.best, weekBest: next.weekBest, quests, ...base, lastCoins: run.score });
         return { profile: next, rejected: null };
       });
       if (!out.rejected && !(await publish(user, out.profile))) throw new Fail(503, 'board');
       return { rejected: out.rejected, profile: view(out.profile) };
+    },
+
+    async claimQuest(user, body) {
+      if (typeof body.id !== 'string') throw new Fail(400, 'id');
+      return db.runTransaction(async tx => {
+        const profile = await load(tx, user.uid);
+        const quest = allQuests(profile.quests).find(item => item.id === body.id);
+        if (!quest) throw new Fail(404, 'unknown');
+        if (isClaimed(profile.quests, quest)) return { reward: 0, profile: view(profile) };
+        if (progressOf(profile.quests, quest) < quest.target) throw new Fail(409, 'progress');
+        const next = { ...profile, coins: profile.coins + quest.reward, quests: markClaimed(profile.quests, quest) };
+        tx.update(profileRef(user.uid), { coins: next.coins, quests: next.quests, updatedAt: FieldValue.serverTimestamp() });
+        return { reward: quest.reward, profile: view(next) };
+      });
     },
 
     async buyItem(user, body) {
@@ -261,50 +310,6 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
       return { profile: view(profile) };
     },
 
-    async setUsername(user, body) {
-      const name = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
-      if (!USERNAME.test(name)) throw new Fail(400, 'username');
-      if (RESERVED.has(name)) throw new Fail(409, 'taken');
-      const profile = await db.runTransaction(async tx => {
-        const snap = await tx.get(profileRef(user.uid));
-        if (!snap.exists) throw new Fail(409, 'no-profile');
-        const keySnap = await tx.get(nameRef(name));
-        if (keySnap.exists && keySnap.data().uid !== user.uid) throw new Fail(409, 'taken');
-        const raw = snap.data();
-        const me = sanitize(raw);
-        if (me.username === name) return me;
-        if (me.username && now() - me.usernameAt < NAME_COOLDOWN_MS) throw new Fail(429, 'cooldown');
-        if (me.username) tx.delete(nameRef(me.username));
-        tx.set(nameRef(name), { uid: user.uid });
-        tx.update(profileRef(user.uid), { username: name, usernameAt: now(), updatedAt: FieldValue.serverTimestamp() });
-        return { ...me, username: name };
-      });
-      await publish(user, profile);
-      return { profile: view(profile) };
-    },
-
-    async setDisplayName(user, body) {
-      const name = cleanDisplayName(body.displayName);
-      const profile = await db.runTransaction(async tx => {
-        const current = await load(tx, user.uid);
-        tx.update(profileRef(user.uid), { displayName: name, updatedAt: FieldValue.serverTimestamp() });
-        return { ...current, displayName: name };
-      });
-      await publish(user, profile);
-      return { profile: view(profile) };
-    },
-
-    async setPhoto(user, body) {
-      if (!PHOTO_MODES.includes(body.mode)) throw new Fail(400, 'photo');
-      const profile = await db.runTransaction(async tx => {
-        const current = await load(tx, user.uid);
-        tx.update(profileRef(user.uid), { photoMode: body.mode, updatedAt: FieldValue.serverTimestamp() });
-        return { ...current, photoMode: body.mode };
-      });
-      await publish(user, profile);
-      return { profile: view(profile) };
-    },
-
     async getBoard(user, body) {
       const week = body.scope === 'all' ? null : weekKey(now());
       const col = week ? db.collection(`flitWeeks/${week}/entries`) : db.collection('flitBoard');
@@ -315,6 +320,7 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
           name: typeof data.name === 'string' && data.name ? data.name.slice(0, 24) : 'Player',
           score: whole(data.score),
           photo: cleanPhoto(data.photo),
+          uid: d.id,
           me: d.id === user.uid
         };
       });
@@ -324,20 +330,27 @@ export function createApi({ db, verify, secret, now = () => Date.now() }) {
         const score = mine ? (week ? weekScore(mine) : mine.best) : 0;
         if (mine && mine.publicBoard && score > 0) {
           const count = await col.where('score', '>', score).count().get();
-          me = { rank: count.data().count + 1, score, name: shortName(boardName(user, mine)), photo: boardPhoto(user, mine) };
+          me = { rank: count.data().count + 1, score, name: shortName(boardName(user, mine)), photo: boardPhoto(user, mine), uid: user.uid };
         }
       }
       return { entries, me, week };
     }
   };
 
+  const digest = value => createHash('sha256').update(String(value)).digest();
+  const releaseAllowed = token => !!releaseSecret && !!token && timingSafeEqual(digest(token), digest(releaseSecret));
+
   return async function handle(token, body) {
+    if (body && body.action === 'publishRelease') {
+      if (!releaseAllowed(token)) throw new Fail(403, 'secret');
+      return publishRelease(body);
+    }
     const user = await verify(token);
     if (!user) throw new Fail(401, 'auth');
     const run = body && typeof body.action === 'string' && Object.hasOwn(actions, body.action) ? actions[body.action] : null;
     if (!run) throw new Fail(400, 'action');
     if (user.anon && !ANON_ACTIONS.has(body.action)) throw new Fail(403, 'signin');
-    return run(user, body);
+    return run({ ...user, admin: isAdmin(user, adminEmail) }, body);
   };
 }
 
@@ -355,7 +368,7 @@ function setup() {
       try {
         const decoded = await getAuth().verifyIdToken(token);
         const provider = decoded.firebase ? decoded.firebase.sign_in_provider : null;
-        return { uid: decoded.uid, name: decoded.name || null, photo: decoded.picture || null, anon: provider === 'anonymous' };
+        return { uid: decoded.uid, name: decoded.name || null, photo: decoded.picture || null, anon: provider === 'anonymous', email: decoded.email || null, verified: decoded.email_verified === true, provider };
       } catch {
         return null;
       }

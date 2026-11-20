@@ -11,6 +11,7 @@ import { initGraphics } from '../core/graphics.js';
 import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { initAudio, audio } from '../core/audio.js';
 import { bump } from '../core/motion.js';
+import { mountVersion } from '../components/version.js';
 
 const $ = id => document.getElementById(id);
 
@@ -27,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initAudio(1);
   mountSound(document.querySelector('.shop-bar-right'), { first: true });
   mountAccount($('account'));
+  mountVersion(document.querySelector('.shop-inner'), { href: '../announcements/' });
 
   let kind = 'skin';
   let base = readPalette();

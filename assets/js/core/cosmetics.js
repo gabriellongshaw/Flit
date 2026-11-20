@@ -61,6 +61,8 @@ export const PILLARS = [
   pillar('bone', 'Bone', 100, '#e7e5e4', '#a8a29e', '#ffffff')
 ];
 
+export const ITEMS = [...SKINS, ...HATS, ...PILLARS, ...WORLDS];
+
 export const KINDS = ['skin', 'hat', 'pillar', 'world'];
 
 export const DEFAULT_EQUIPPED = { skin: 'skin:coral', hat: 'hat:none', pillar: 'pillar:dusk', world: 'world:sunset' };

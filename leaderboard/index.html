@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.vercel.app; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.firebaseio.com https://*.vercel.app; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+  <script src="../assets/js/core/shell.js"></script>
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="See the top Flit players this week and of all time.">
@@ -21,18 +22,20 @@
   <link rel="stylesheet" href="../assets/css/components/screens.css">
   <link rel="stylesheet" href="../assets/css/components/buttons.css">
   <link rel="stylesheet" href="../assets/css/components/hud.css">
-  <link rel="stylesheet" href="../assets/css/components/sound.css">
   <link rel="stylesheet" href="../assets/css/components/account.css">
   <link rel="stylesheet" href="../assets/css/components/shop.css">
   <link rel="stylesheet" href="../assets/css/components/board.css">
-  <link rel="stylesheet" href="../assets/css/responsive.css">
+    <link rel="stylesheet" href="../assets/css/responsive.css">
 </head>
 <body>
   <div class="page shop-page board-page">
-    <div class="shop-scroll">
+    <div class="shop-scroll" id="scroll">
       <div class="shop-inner">
         <h1 class="shop-title">Leaderboard</h1>
-        <p class="shop-note hidden" id="note"><span>Sign in to put your score on the leaderboard.</span><button class="tertiary-button" id="note-signin">Sign in</button></p>
+        <p class="shop-note hidden" id="note">
+          <span>Sign in to put your score on the leaderboard.</span>
+          <button class="tertiary-button" id="note-signin">Sign in</button>
+        </p>
         <div class="tabs tabs-2" id="tabs" role="tablist">
           <span class="tab-pill" aria-hidden="true"></span>
           <button class="tab active" data-scope="week" role="tab" aria-selected="true">This week</button>

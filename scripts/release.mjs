@@ -1,14 +1,24 @@
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const repo = process.env.GITHUB_REPOSITORY;
 const token = process.env.GITHUB_TOKEN;
+const apiUrl = process.env.FLIT_API_URL || '';
+const secret = process.env.RELEASE_SECRET || '';
 const dry = process.argv.includes('--dry');
+const backfill = process.argv.includes('--backfill');
+const announceMode = process.argv.includes('--announce');
+const refresh = process.argv.includes('--refresh');
+const countArg = process.argv.find(arg => arg.startsWith('--count='));
+const countValue = countArg ? countArg.slice(8).trim().toLowerCase() : 'all';
+const count = countValue === 'all' || countValue === '' ? Infinity : Math.max(1, Number(countValue) || 1);
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).trim();
 
 const SEMVER = /^v(\d+)\.(\d+)\.(\d+)$/;
 const SUBJECT = /^(\w+)(?:\(([^)]*)\))?(!)?:\s*(.+)$/;
+
+const titles = JSON.parse(readFileSync(new URL('./release-titles.json', import.meta.url), 'utf8'));
 
 const isAncestor = (tag, ref) => {
   try {
@@ -19,7 +29,9 @@ const isAncestor = (tag, ref) => {
   }
 };
 
-const dateOf = ref => new Date(Number(git('log', '-1', '--format=%ct', ref)) * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const commitTime = ref => Number(git('log', '-1', '--format=%ct', ref)) * 1000;
+
+const dateOf = ref => new Date(commitTime(ref)).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 const tags = () => git('tag', '--list', 'v*', '--sort=v:refname').split('\n').filter(tag => SEMVER.test(tag));
 
@@ -35,6 +47,7 @@ function commitsBetween(from, to) {
       const match = SUBJECT.exec(subject);
       return {
         sha,
+        subject,
         type: match ? match[1] : 'other',
         scope: match && match[2] ? match[2] : '',
         text: match ? match[4] : subject,
@@ -78,16 +91,25 @@ function clip(text, max) {
   if (text.length <= max) return text;
   const cut = text.slice(0, max - 1);
   const space = cut.lastIndexOf(' ');
-  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.-]+$/, '')}…`;
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.-]+$/, '')}\u2026`;
 }
 
-function headline(version, list) {
-  const lead = (list.find(c => c.type === 'feat') || list.find(c => c.type === 'fix') || list[0] || {}).text;
+function headline(version, list, fallback) {
+  const lead = fallback || (list.find(c => c.type === 'feat') || list.find(c => c.type === 'fix') || list[0] || {}).text;
   return lead ? clip(`Flit ${version.slice(1)}: ${capital(lead)}`, 120) : `Flit ${version.slice(1)}`;
 }
 
-function github(path, options = {}) {
-  return fetch(`https://api.github.com/repos/${repo}${path}`, {
+function summary(list) {
+  const feats = list.filter(c => c.type === 'feat').map(c => `New: ${capital(c.text)}`);
+  const fixes = list.filter(c => c.type === 'fix' || c.type === 'perf').map(c => `Fixed: ${capital(c.text)}`);
+  const lines = [...feats.slice(0, 8), ...fixes.slice(0, 8)];
+  const extra = feats.length + fixes.length - lines.length;
+  if (extra > 0) lines.push(`And ${extra} more`);
+  return lines.join('\n').slice(0, 1500);
+}
+
+async function github(path, options = {}) {
+  const res = await fetch(`https://api.github.com/repos/${repo}${path}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -97,11 +119,26 @@ function github(path, options = {}) {
       ...(options.headers || {})
     }
   });
+  return res;
 }
 
 async function createRelease(payload) {
   const res = await github('/releases', { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error(`release ${payload.tag_name} failed: ${res.status} ${await res.text()}`);
+}
+
+async function announce(version, title, body, at, update) {
+  if (!apiUrl || !secret) {
+    console.log('announcement skipped: FLIT_API_URL or RELEASE_SECRET not set');
+    return;
+  }
+  const res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'publishRelease', version: version.slice(1), title, body, ...(at ? { at } : {}), ...(update ? { update: true } : {}) })
+  });
+  console.log(`announcement ${version}: ${res.status}`);
+  if (!res.ok) throw new Error(`announcement failed: ${res.status} ${await res.text()}`);
 }
 
 const writeVersion = version => writeFileSync(new URL('../version.json', import.meta.url), `${JSON.stringify({ version: version.slice(1) }, null, 2)}\n`);
@@ -131,6 +168,8 @@ async function releaseNext() {
   const title = headline(version, commits);
   const notes = notesFor(commits, last, version, dateOf(head));
   console.log(`${last || 'none'} -> ${version} (${bump})${replaced ? ' replacing the earlier tag of the same name' : ''}`);
+  const others = stale.filter(tag => tag !== version);
+  if (others.length) console.log(`tags not on this branch left alone: ${others.join(', ')}`);
   console.log(notes);
   if (dry) return;
   if (replaced) {
@@ -145,11 +184,62 @@ async function releaseNext() {
       await createRelease({ tag_name: version, name: title, body: notes, draft: false, prerelease: false });
     }
     console.log(`updated ${version}`);
+    writeVersion(version);
   } else {
     await createRelease({ tag_name: version, target_commitish: head, name: title, body: notes, draft: false, prerelease: false });
     console.log(`released ${version}`);
+    writeVersion(version);
   }
-  writeVersion(version);
+  await announce(version, title, summary(commits), commitTime(head), replaced);
+}
+
+function orderedTimes(list) {
+  let last = 0;
+  return new Map(list.map(tag => {
+    last = Math.max(commitTime(tag), last + 1000);
+    return [tag, last];
+  }));
+}
+
+async function announceRecent() {
+  const list = tags();
+  const times = orderedTimes(list);
+  for (const tag of Number.isFinite(count) ? list.slice(-count) : list) {
+    const index = list.indexOf(tag);
+    const prev = index ? list[index - 1] : null;
+    const commits = commitsBetween(prev, tag);
+    const title = titles[tag] ? `Flit ${tag.slice(1)}: ${titles[tag]}` : headline(tag, commits);
+    const body = summary(commits);
+    const at = times.get(tag);
+    console.log(`announce ${tag}: ${title}`);
+    if (dry) continue;
+    await announce(tag, title, body, at, refresh);
+  }
+}
+
+async function backfillAll() {
+  const list = tags();
+  for (let i = 0; i < list.length; i++) {
+    const tag = list[i];
+    const existing = dry ? { ok: false } : await github(`/releases/tags/${tag}`);
+    if (existing.ok && !refresh) {
+      console.log(`skip ${tag}: release exists`);
+      continue;
+    }
+    const prev = i ? list[i - 1] : null;
+    const commits = commitsBetween(prev, tag);
+    const notes = notesFor(commits, prev, tag, dateOf(tag));
+    const name = titles[tag] ? `Flit ${tag.slice(1)}: ${titles[tag]}` : headline(tag, commits);
+    console.log(`release ${tag}: ${name}`);
+    if (dry) continue;
+    if (existing.ok) {
+      const { id } = await existing.json();
+      const patched = await github(`/releases/${id}`, { method: 'PATCH', body: JSON.stringify({ name, body: notes }) });
+      if (!patched.ok) throw new Error(`updating release ${tag} failed: ${patched.status} ${await patched.text()}`);
+      continue;
+    }
+    await createRelease({ tag_name: tag, name, body: notes, draft: false, prerelease: false, make_latest: i === list.length - 1 ? 'true' : 'false' });
+  }
 }
 
 if (!repo || (!token && !dry)) {
@@ -157,7 +247,7 @@ if (!repo || (!token && !dry)) {
   process.exit(1);
 }
 
-releaseNext().catch(e => {
+(announceMode ? announceRecent() : backfill ? backfillAll() : releaseNext()).catch(e => {
   console.error(e.message);
   process.exit(1);
 });

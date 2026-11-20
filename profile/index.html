@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.vercel.app; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.firebaseio.com https://*.vercel.app; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+  <script src="../assets/js/core/shell.js"></script>
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Manage your Flit profile.">
+  <meta name="description" content="See a Flit player's profile and stats, and manage your privacy.">
   <meta name="author" content="Gabriel Longshaw">
   <title>Flit Profile</title>
   <meta name="theme-color" content="#fff6ee" media="(prefers-color-scheme: light)">
@@ -21,62 +22,30 @@
   <link rel="stylesheet" href="../assets/css/components/screens.css">
   <link rel="stylesheet" href="../assets/css/components/buttons.css">
   <link rel="stylesheet" href="../assets/css/components/hud.css">
-  <link rel="stylesheet" href="../assets/css/components/sound.css">
   <link rel="stylesheet" href="../assets/css/components/account.css">
   <link rel="stylesheet" href="../assets/css/components/shop.css">
-  <link rel="stylesheet" href="../assets/css/components/profile.css">
+  <link rel="stylesheet" href="../assets/css/components/board.css">
+  <link rel="stylesheet" href="../assets/css/components/modal.css">
+  <link rel="stylesheet" href="../assets/css/components/friends.css">
+  <link rel="stylesheet" href="../assets/css/components/player.css">
   <link rel="stylesheet" href="../assets/css/responsive.css">
 </head>
 <body>
-  <div class="page shop-page profile-page">
-    <div class="shop-scroll">
+  <div class="page shop-page board-page friends-page player-page">
+    <div class="shop-scroll" id="scroll">
       <div class="shop-inner">
-        <p class="shop-note hidden" id="note"><span>Sign in to set up your profile.</span><button class="tertiary-button" id="note-signin">Sign in</button></p>
-        <div class="profile-stack hidden" id="content">
-          <section class="profile-card profile-head">
-            <div id="head-avatar"></div>
-            <div class="profile-who"><span class="profile-name" id="head-name"></span><span class="profile-handle" id="head-handle"></span></div>
-          </section>
-          <section class="profile-stats">
-            <div class="stat"><span class="stat-value" id="st-best">0</span><span class="stat-label">Best</span></div>
-            <div class="stat"><span class="stat-value" id="st-week">0</span><span class="stat-label">This week</span></div>
-            <div class="stat"><span class="stat-value" id="st-runs">0</span><span class="stat-label">Runs</span></div>
-          </section>
-          <section class="profile-card">
-            <h2 class="profile-h">Username</h2>
-            <p class="profile-help">Shown on the leaderboard. 3 to 16 letters, numbers or underscores. You can change it once a day.</p>
-            <form class="profile-field" id="username-form"><input class="profile-input" id="username" maxlength="16" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="username"><button class="tertiary-button" type="submit">Save</button></form>
-            <p class="profile-msg" id="username-msg"></p>
-          </section>
-          <section class="profile-card">
-            <h2 class="profile-h">Display name</h2>
-            <p class="profile-help">Used on the leaderboard if you have no username. Leave empty to use your Google name.</p>
-            <form class="profile-field" id="display-form"><input class="profile-input" id="display" maxlength="24" autocomplete="off" placeholder="Display name"><button class="tertiary-button" type="submit">Save</button></form>
-            <p class="profile-msg" id="display-msg"></p>
-          </section>
-          <section class="profile-card">
-            <h2 class="profile-h">Profile photo</h2>
-            <p class="profile-help">The picture shown next to your score.</p>
-            <div class="profile-seg" id="photo-seg" role="radiogroup" aria-label="Profile photo">
-              <span class="tab-pill" aria-hidden="true"></span>
-              <button class="tab active" data-mode="google" role="radio">Google photo</button>
-              <button class="tab" data-mode="none" role="radio">Initial only</button>
-            </div>
-          </section>
-          <section class="profile-card">
-            <h2 class="profile-h">Leaderboard</h2>
-            <p class="profile-help">When hidden, your scores are removed from both boards.</p>
-            <button class="tertiary-button" id="board-toggle"></button>
-          </section>
-          <button class="secondary-button profile-out" id="signout">Sign out</button>
-        </div>
+        <p class="shop-note hidden" id="note">
+          <span>Sign in to set up your profile.</span>
+          <button class="tertiary-button" id="note-signin">Sign in</button>
+        </p>
+        <div class="friends-stack hidden" id="content"></div>
       </div>
     </div>
     <div class="shop-bar">
       <div class="shop-blur" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <button class="leave-button" id="back-btn" aria-label="Back to menu">
+      <button class="leave-button" id="back-btn" aria-label="Back">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-        <span class="leave-label">Menu</span>
+        <span class="leave-label">Back</span>
       </button>
       <div class="shop-bar-right">
         <div class="coin-pill"><span class="coin-dot"></span><span id="wallet">0</span></div>
@@ -84,6 +53,6 @@
       </div>
     </div>
   </div>
-  <script type="module" src="../assets/js/pages/profile.js"></script>
+  <script type="module" src="../assets/js/pages/player.js"></script>
 </body>
 </html>

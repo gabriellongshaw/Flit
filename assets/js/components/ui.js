@@ -1,0 +1,92 @@
+export const MAX_GIFT_COINS = 1000;
+
+export const MESSAGES = {
+  taken: 'That username is taken.',
+  username: 'Use 3 to 16 lowercase letters, numbers or underscores.',
+  cooldown: 'You can only change your username once a day.',
+  'no-user': 'That player could not be found.',
+  self: 'That is your own username.',
+  already: 'You are already friends.',
+  pending: 'You already sent them a request.',
+  full: 'Your friends list is full.',
+  'target-full': 'Their friends list is full.',
+  'too-many': 'You have too many pending requests.',
+  'target-busy': 'They have too many pending requests.',
+  'no-username': 'Choose a username first.',
+  coins: 'Not enough coins.',
+  owned: 'They already own that item.',
+  'not-friends': 'You are not friends yet.',
+  amount: `Gifts can be up to ${MAX_GIFT_COINS} coins.`,
+  empty: 'Choose coins or an item to send.',
+  'requests-off': 'This player is not accepting friend requests.',
+  'you-blocked': 'You blocked this player. Unblock them first.',
+  'too-many-favourites': 'You can favourite up to 10 friends.',
+  'too-many-blocked': 'Your blocked list is full.',
+  privacy: 'That setting is not valid.',
+  admin: 'Only the owner can do that.',
+  signin: 'Sign in with Google to do that.',
+  'no-post': 'That post no longer exists.',
+  closed: 'This post is closed.',
+  kind: 'That does not work on this kind of post.',
+  option: 'That option does not exist.',
+  post: 'Add a title, and for polls 2 to 6 different options.',
+  forbidden: 'You can only delete your own posts and replies.',
+  'not-yours': 'You can only edit your own posts.',
+  reply: 'Write a reply first.',
+  'replies-full': 'This post has the most replies it can hold.',
+  'reply-rate': 'You can reply 20 times a day. Try again tomorrow.',
+  limit: 'You have 10 posts already. Delete one to post again.',
+  rate: 'You can post 3 times a day. Try again tomorrow.',
+  announcement: 'Add a title for the announcement.',
+  'no-announcement': 'That announcement no longer exists.',
+  'pinned-full': 'You can pin 3 announcements. Unpin one first.'
+};
+
+export const messageFor = e => MESSAGES[e && e.code] || `Something went wrong${e && e.code ? ` (${e.code})` : ''}. Try again.`;
+
+export function button(label, className, onClick) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = className;
+  el.textContent = label;
+  el.addEventListener('click', onClick);
+  return el;
+}
+
+const PHOTO_SIZE = 96;
+const PHOTO_MAX_CHARS = 24000;
+
+export function resizePhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('image'));
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);
+        if (!side) {
+          reject(new Error('image'));
+          return;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = PHOTO_SIZE;
+        canvas.height = PHOTO_SIZE;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, PHOTO_SIZE, PHOTO_SIZE);
+        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+        let quality = 0.85;
+        let out = canvas.toDataURL('image/jpeg', quality);
+        while (out.length > PHOTO_MAX_CHARS && quality > 0.3) {
+          quality -= 0.1;
+          out = canvas.toDataURL('image/jpeg', quality);
+        }
+        if (out.length > PHOTO_MAX_CHARS) reject(new Error('size'));
+        else resolve(out);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}

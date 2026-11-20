@@ -1,6 +1,11 @@
 import { loadFirebase } from './firebase.js';
+import { holdPage, swapPage } from './motion.js';
+import { cleanPrivacy, defaultPrivacy } from './privacy.js';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED, findItem, kindOf } from './cosmetics.js';
+import { allQuests, applyRun, cleanQuests, freshQuests, isClaimed, progressOf, readyCount, rollQuests } from './quests.js';
 import { weekKey } from './week.js';
+
+const PHOTO_MODES = ['google', 'custom', 'none'];
 
 const KEY = 'flit:profile';
 const API_URL = 'https://flit-tau.vercel.app/api/game';
@@ -31,10 +36,14 @@ const defaults = () => ({
   runs: 0,
   owned: [...DEFAULT_OWNED],
   equipped: { ...DEFAULT_EQUIPPED },
+  quests: freshQuests(),
   publicBoard: true,
   username: null,
   displayName: null,
-  photoMode: 'google'
+  searchable: true,
+  photoMode: 'google',
+  photoData: null,
+  privacy: defaultPrivacy()
 });
 
 function sanitize(raw) {
@@ -56,10 +65,14 @@ function sanitize(raw) {
     runs: whole(data.runs),
     owned: [...owned],
     equipped,
+    quests: cleanQuests(data.quests),
     publicBoard: data.publicBoard !== false,
     username: typeof data.username === 'string' ? data.username.toLowerCase() : null,
     displayName: cleanName(data.displayName),
-    photoMode: data.photoMode === 'none' ? 'none' : 'google'
+    searchable: data.searchable !== false,
+    photoMode: PHOTO_MODES.includes(data.photoMode) ? data.photoMode : 'google',
+    photoData: typeof data.photoData === 'string' && data.photoData.startsWith('data:image/jpeg;base64,') ? data.photoData : null,
+    privacy: cleanPrivacy(data.privacy)
   };
 }
 
@@ -136,35 +149,22 @@ function startAnonymous() {
     });
 }
 
-async function runUser(user) {
-  const status = user.isAnonymous ? 'out' : 'in';
-  session.status = status;
-  session.syncing = true;
-  session.error = null;
-  emit();
-  try {
-    const out = await call('syncProfile', {});
-    state = { ...sanitize(out.profile), uid: user.uid, anon: user.isAnonymous, name: cleanName(user.displayName), photo: cleanPhoto(user.photoURL) };
-    cloudReady = true;
-    persist();
-  } catch (e) {
-    cloudReady = false;
-    session.error = 'offline';
-  }
-  session.syncing = false;
-  emit();
-}
+const accountOf = data => (data.uid && !data.anon ? data.uid : null);
 
 async function handleUser(user) {
   if (!user) {
     cloudReady = false;
-    if (state.uid) {
-      state = guestState();
-      persist();
-    }
-    session.status = 'out';
-    session.syncing = false;
-    emit();
+    const leave = () => {
+      if (state.uid) {
+        state = guestState();
+        persist();
+      }
+      session.status = 'out';
+      session.syncing = false;
+      emit();
+    };
+    if (accountOf(state)) await swapPage(leave);
+    else leave();
     startAnonymous();
     return;
   }
@@ -177,6 +177,38 @@ async function handleUser(user) {
   } finally {
     if (inflight && inflight.promise === promise) inflight = null;
   }
+}
+
+async function runUser(user) {
+  const status = user.isAnonymous ? 'out' : 'in';
+  const hold = !user.isAnonymous && accountOf(state) !== user.uid ? holdPage() : null;
+  session.syncing = true;
+  session.error = null;
+  if (!hold) {
+    session.status = status;
+    emit();
+  }
+  let next = null;
+  try {
+    const out = await call('syncProfile', {});
+    next = { ...sanitize(out.profile), uid: user.uid, anon: user.isAnonymous, name: cleanName(user.displayName), photo: cleanPhoto(user.photoURL) };
+  } catch (e) {
+    session.error = e && e.code ? 'server' : 'offline';
+    if (e && e.code) console.warn(`[flit] could not load your save: ${e.code}`);
+  }
+  const settle = () => {
+    session.status = status;
+    cloudReady = !!next;
+    if (next) {
+      state = next;
+      persist();
+    }
+    session.syncing = false;
+    emit();
+  };
+  if (hold) await hold.release(settle);
+  else if (next && accountOf(next) !== accountOf(state)) await swapPage(settle);
+  else settle();
 }
 
 async function finishLink() {
@@ -204,7 +236,46 @@ export const profile = {
     return cloudReady && !!state.uid;
   },
   get avatar() {
-    return state.photoMode === 'none' ? null : state.photo;
+    if (state.photoMode === 'custom') return state.photoData;
+    if (state.photoMode === 'google') return state.photo;
+    return null;
+  },
+
+  get social() {
+    return cloudReady && !!state.uid && !state.anon;
+  },
+
+  get canView() {
+    return cloudReady && !!state.uid;
+  },
+
+  refreshQuests() {
+    const rolled = rollQuests(state.quests);
+    if (rolled === state.quests) return;
+    state = { ...state, quests: rolled };
+    persist();
+    emit();
+  },
+
+  readyQuests() {
+    return readyCount(rollQuests(state.quests));
+  },
+
+  async claimQuest(id) {
+    const local = rollQuests(state.quests);
+    const quest = allQuests(local).find(item => item.id === id);
+    if (!quest) return { ok: false, reason: 'unknown' };
+    if (isClaimed(local, quest)) return { ok: true, reward: 0 };
+    if (progressOf(local, quest) < quest.target) return { ok: false, reason: 'progress' };
+    if (!cloudReady || !state.uid) return { ok: false, reason: 'offline' };
+    try {
+      const out = await call('claimQuest', { id });
+      applyServer(out.profile);
+      return { ok: true, reward: out.reward };
+    } catch {
+      await refresh();
+      return { ok: false, reason: 'offline' };
+    }
   },
 
   get label() {
@@ -265,6 +336,13 @@ export const profile = {
         return;
       }
       if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
+        if (window.top !== window.self) {
+          try {
+            sessionStorage.setItem('flit:bare', '1');
+            window.top.location.replace(window.location.href);
+          } catch {}
+          return;
+        }
         if (guest) await authMod.linkWithRedirect(guest, provider);
         else await authMod.signInWithRedirect(auth, provider);
         return;
@@ -294,7 +372,8 @@ export const profile = {
       coins: state.coins + score,
       runs: state.runs + 1,
       best: Math.max(state.best, score),
-      weekBest: { week, score: Math.max(mine, score) }
+      weekBest: { week, score: Math.max(mine, score) },
+      quests: applyRun(state.quests, { score, flaps })
     };
     persist();
     emit();
@@ -351,7 +430,7 @@ export const profile = {
       .catch(() => refresh());
   },
 
-  async update(action, data) {
+  async api(action, data) {
     if (!cloudReady || !state.uid) {
       const err = new Error('signed-out');
       err.code = 'signed-out';
@@ -361,6 +440,10 @@ export const profile = {
     const out = await call(action, data);
     if (out.profile && state.uid === uid) applyServer(out.profile);
     return out;
+  },
+
+  update(action, data) {
+    return this.api(action, data);
   },
 
   async fetchBoard(scope) {

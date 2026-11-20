@@ -197,7 +197,7 @@ function swoosh(bus, { from, to, dur, vol, q = 1.2, t = ctx.currentTime }) {
   src.stop(t + dur + 0.03);
 }
 
-const NOTES = { C5: 523.25, E5: 659.25, G5: 783.99, C6: 1046.5, E6: 1318.5 };
+const NOTES = { C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, E6: 1318.5, G6: 1568 };
 
 function run(notes, { gap, dur, vol, type = 'square' }) {
   const t = ctx.currentTime;
@@ -216,10 +216,27 @@ const EFFECTS = {
   },
   best: () => run(['C5', 'E5', 'G5', 'C6', 'E6'], { gap: 0.085, dur: 0.18, vol: 0.14 }),
   click: () => blip(sfxBus, { type: 'triangle', from: 700, to: 520, dur: 0.05, vol: 0.18 }),
-  toggle: () => blip(sfxBus, { type: 'triangle', from: 520, to: 780, dur: 0.08, vol: 0.18 })
+  toggle: () => blip(sfxBus, { type: 'triangle', from: 520, to: 780, dur: 0.08, vol: 0.18 }),
+  equip: () => run(['G5', 'C6'], { gap: 0.06, dur: 0.1, vol: 0.13, type: 'triangle' }),
+  buy: () => run(['E5', 'G5', 'C6', 'E6'], { gap: 0.07, dur: 0.16, vol: 0.13 }),
+  claim: () => run(['C5', 'G5', 'C6', 'G6'], { gap: 0.07, dur: 0.16, vol: 0.13 }),
+  gift: () => run(['G5', 'B5', 'E6', 'G6', 'E6', 'G6'], { gap: 0.06, dur: 0.14, vol: 0.12, type: 'triangle' }),
+  request: () => run(['E5', 'A5'], { gap: 0.09, dur: 0.14, vol: 0.13, type: 'triangle' }),
+  error: () => blip(sfxBus, { type: 'sawtooth', from: 180, to: 110, dur: 0.22, vol: 0.16 })
 };
 
 const MIN_GAP = { click: 0.03, flap: 0.05, point: 0.04 };
+
+function findHost() {
+  try {
+    if (window.parent !== window && window.parent.__flitAudio) return window.parent.__flitAudio;
+  } catch {}
+  return null;
+}
+
+const host = findHost();
+
+export const hosted = host !== null;
 
 const local = {
   get settings() {
@@ -278,7 +295,21 @@ const local = {
   unlock
 };
 
-export const audio = local;
+function wrapHost() {
+  return Object.create(host, {
+    subscribe: {
+      value(fn) {
+        const off = host.subscribe(fn);
+        window.addEventListener('pagehide', off, { once: true });
+        return off;
+      }
+    }
+  });
+}
+
+export const audio = host ? wrapHost() : local;
+
+if (host) UNLOCK_EVENTS.forEach(type => window.addEventListener(type, () => host.unlock(), true));
 
 export function initAudio(volume = 1) {
   audio.music(volume);
@@ -287,7 +318,7 @@ export function initAudio(volume = 1) {
   document.addEventListener(
     'click',
     e => {
-      const el = e.target.closest && e.target.closest('button, a');
+      const el = e.target.closest && e.target.closest('button, a, [role="tab"], .item-card');
       if (!el || el.disabled || el.dataset.silent !== undefined) return;
       audio.sfx('click');
     },

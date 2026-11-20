@@ -3,7 +3,7 @@ import { graphics } from '../core/graphics.js';
 import { hideEl, showEl } from '../core/motion.js';
 
 const ICON =
-  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>';
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/></svg>';
 
 const BLUR_MODES = [
   { key: 'auto', label: 'Auto' },
@@ -26,14 +26,14 @@ export function mountSound(parent, { className = 'sound-btn', first = false } = 
   btn.dataset.silent = '';
   btn.setAttribute('aria-haspopup', 'true');
   btn.setAttribute('aria-expanded', 'false');
-  btn.setAttribute('aria-label', 'Sound');
-  btn.title = 'Sound';
   btn.innerHTML = ICON;
+  btn.setAttribute('aria-label', 'Settings');
+  btn.title = 'Settings';
 
   const menu = document.createElement('div');
   menu.className = 'sound-menu hidden';
   menu.setAttribute('role', 'group');
-  menu.setAttribute('aria-label', 'Sound');
+  menu.setAttribute('aria-label', 'Settings');
 
   const rows = OPTIONS.map(({ key, label }) => {
     const row = document.createElement('button');

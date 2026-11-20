@@ -1,5 +1,5 @@
 import { profile } from '../core/profile.js';
-import { hideEl, showEl } from '../core/motion.js';
+import { hideEl, isQuiet, reducedMotion, showEl } from '../core/motion.js';
 import { navigateTo } from '../core/transition.js';
 
 let toastEl = null;
@@ -10,7 +10,6 @@ export function showToast(text) {
   if (!toastEl) {
     toastEl = document.createElement('div');
     toastEl.className = 'toast';
-    toastEl.setAttribute('role', 'status');
     document.body.appendChild(toastEl);
   }
   toastEl.textContent = text;
@@ -46,10 +45,10 @@ const USER_ICON =
   '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
 
 export function mountAccount(el, root = '../') {
-  const onProfile = /\/profile\/?$/.test(window.location.pathname);
   let lastError = null;
   let mode = null;
   let chip = null;
+  const onProfile = /\/profile\/?$/.test(window.location.pathname) && !window.location.search;
 
   function makeAvatar(photo, name) {
     const avatar = document.createElement(photo ? 'img' : 'span');
@@ -122,32 +121,59 @@ export function mountAccount(el, root = '../') {
     return [btn];
   }
 
+  function swap(next) {
+    const animate = mode !== null && !reducedMotion() && !isQuiet();
+    [...el.children].forEach(node => {
+      if (!animate) {
+        node.remove();
+        return;
+      }
+      node.classList.add('account-leaving');
+      setTimeout(() => node.remove(), 220);
+    });
+    el.append(...next);
+    if (!animate) return;
+    next.forEach(node => node.classList.add('account-entering'));
+    setTimeout(() => next.forEach(node => node.classList.remove('account-entering')), 520);
+  }
+
   function render() {
     const { status, syncing, error } = profile.session;
-    const { uid, anon } = profile.state;
-    const name = profile.state.displayName || profile.state.username || profile.state.name;
+    const { uid, username, displayName } = profile.state;
+    const photo = profile.avatar;
+    const name = displayName || username || profile.state.name;
+    const anon = profile.state.anon;
     el.classList.toggle('hidden', status === 'unavailable' && (!uid || anon));
+    el.classList.toggle('pending', status === 'loading' && !uid);
+
     const signedIn = status === 'in' || ((status === 'unavailable' || status === 'loading') && uid && !anon);
     const next = signedIn ? 'chip' : 'button';
     if (next !== mode) {
-      el.replaceChildren(...(signedIn ? buildChip() : buildButton()));
+      swap(signedIn ? buildChip() : buildButton());
       mode = next;
     }
     if (signedIn) {
-      const key = `${profile.avatar || ''}|${name || ''}`;
+      const key = `${photo || ''}|${name || ''}`;
       if (chip.key !== key) {
-        const avatar = makeAvatar(profile.avatar, name);
+        const avatar = makeAvatar(photo, name);
         chip.avatar.replaceWith(avatar);
         chip.avatar = avatar;
         chip.key = key;
       }
       chip.label.textContent = syncing ? 'Syncing' : (name || 'Account').split(' ')[0];
     } else {
-      const btn = el.querySelector('.account-btn');
+      const btn = el.querySelector('.account-btn:not(.account-leaving)');
       if (btn) btn.disabled = status === 'loading';
     }
+
     if (error && error !== lastError) {
-      showToast(error === 'anon' ? 'Guest saves are not enabled yet. Sign in to save your coins.' : 'Could not reach the server. Check your connection.');
+      showToast(
+        error === 'anon'
+          ? 'Guest saves are not enabled yet. Sign in to save your coins.'
+          : error === 'server'
+            ? 'The server could not load your save. Try again soon.'
+            : 'Could not reach the server. Check your connection.'
+      );
     }
     lastError = error;
   }

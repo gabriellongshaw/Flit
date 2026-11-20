@@ -22,10 +22,46 @@ document.addEventListener('DOMContentLoaded', () => {
   profile.init();
   mountAccount(document.getElementById('account'), './');
   mountSound(document.querySelector('.home-nav'));
-  mountVersion(document.querySelector('.credits-container'), { href: 'https://github.com/gabriellongshaw/Flit/releases' });
+  mountVersion(document.querySelector('.credits-container'), { href: 'announcements/', inline: true });
 
-  const best = getBest();
-  document.getElementById('home-best').textContent = best > 0 ? `Best ${best}` : '';
+  const bestEl = document.getElementById('home-best');
+  const showStats = () => {
+    const best = Math.max(getBest(), profile.state.best);
+    const { coins } = profile.state;
+    bestEl.textContent = best > 0 || coins > 0 ? `Best ${best} · ${coins} coins` : '';
+  };
+  const badge = document.getElementById('quests-badge');
+  const showBadge = () => {
+    const ready = profile.readyQuests();
+    badge.textContent = ready;
+    badge.classList.toggle('hidden', ready === 0);
+  };
+  const friendsBadge = document.getElementById('friends-badge');
+  let socialFetched = false;
+  const showFriendsBadge = async () => {
+    const { status, syncing } = profile.session;
+    if (status !== 'in') {
+      socialFetched = false;
+      friendsBadge.classList.add('hidden');
+      return;
+    }
+    if (syncing || socialFetched || !profile.social) return;
+    socialFetched = true;
+    try {
+      const out = await profile.api('social');
+      const waiting = out.incoming.length + out.gifts.length;
+      friendsBadge.textContent = waiting;
+      friendsBadge.classList.toggle('hidden', waiting === 0);
+    } catch {
+      socialFetched = false;
+    }
+  };
+  profile.subscribe(showFriendsBadge);
+  profile.subscribe(showStats);
+  profile.subscribe(showBadge);
+  profile.refreshQuests();
+  showStats();
+  showBadge();
 
   const canvas = document.getElementById('home-canvas');
   const ctx = canvas.getContext('2d');
@@ -86,8 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   requestAnimationFrame(frame);
 
-  for (const id of ['play-btn', 'shop-btn', 'board-btn']) {
-    const link = document.getElementById(id);
+  for (const link of document.querySelectorAll('#play-btn, #shop-btn, #quests-btn, #board-btn, #friends-btn, #polls-btn, #announcements-btn')) {
     link.addEventListener('click', e => {
       e.preventDefault();
       navigateTo(link.getAttribute('href'));

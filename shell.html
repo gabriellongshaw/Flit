@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" data-shell>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Flit</title>
+  <meta name="theme-color" content="#fff6ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a0f14" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" type="image/svg+xml" href="assets/images/icon.svg">
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #fff6ee; }
+    @media (prefers-color-scheme: dark) { html, body { background: #1a0f14; } }
+    iframe { position: fixed; inset: 0; width: 100%; height: 100%; height: 100dvh; border: 0; display: block; background: transparent; }
+  </style>
+</head>
+<body>
+  <iframe id="app" title="Flit" allow="autoplay; fullscreen"></iframe>
+  <script src="assets/js/core/shell.js"></script>
+</body>
+</html>

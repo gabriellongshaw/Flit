@@ -6,6 +6,9 @@ import { detectTouch } from '../core/theme.js';
 import { initGraphics } from '../core/graphics.js';
 import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { initAudio } from '../core/audio.js';
+import { setCoins, setShown } from '../core/motion.js';
+import { colourFor } from '../components/avatar.js';
+import { mountVersion } from '../components/version.js';
 
 const $ = id => document.getElementById(id);
 const CACHE_MS = 30000;
@@ -27,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initAudio(1);
   mountSound(document.querySelector('.shop-bar-right'), { first: true });
   mountAccount($('account'));
+  mountVersion(document.querySelector('.shop-inner'), { href: '../announcements/' });
 
   const list = $('rank-list');
   const visibility = $('visibility-btn');
@@ -44,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const initial = () => {
       const span = document.createElement('span');
       span.className = 'rank-avatar';
+      span.style.background = colourFor(entry.uid || entry.name || '');
       span.textContent = (entry.name || '?').charAt(0).toUpperCase();
       return span;
     };
@@ -69,13 +74,23 @@ document.addEventListener('DOMContentLoaded', () => {
     score.className = 'rank-score';
     score.textContent = entry.score;
     el.append(pos, avatar, name, score);
+    if (entry.uid) {
+      const open = () => navigateTo(me ? '../profile/' : `../profile/?id=${encodeURIComponent(entry.uid)}`);
+      el.classList.add('link');
+      el.tabIndex = 0;
+      el.setAttribute('role', 'link');
+      el.addEventListener('click', open);
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') open();
+      });
+    }
     return el;
   }
 
   function message(text, retry) {
     list.replaceChildren();
     const p = document.createElement('p');
-    p.className = 'board-empty';
+    p.className = 'quest-empty';
     p.textContent = text;
     list.appendChild(p);
     if (retry) {
@@ -134,9 +149,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderChrome() {
     const signedIn = profile.session.status === 'in' && profile.ready;
-    $('wallet').textContent = profile.state.coins;
-    $('note').classList.toggle('hidden', !(profile.ready && profile.session.status === 'out'));
-    visibility.classList.toggle('hidden', !signedIn);
+    setCoins($('wallet'), profile.state.coins);
+    setShown($('note'), profile.ready && profile.session.status === 'out');
+    setShown(visibility, signedIn);
     visibility.textContent = profile.state.publicBoard ? 'Hide me from the leaderboard' : 'Show me on the leaderboard';
     renderMeta();
   }
