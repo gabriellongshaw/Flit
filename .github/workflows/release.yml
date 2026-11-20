@@ -16,6 +16,12 @@ on:
         options:
           - release
           - dry-run
+          - backfill
+          - announce
+          - refresh
+      count:
+        description: How many of the latest releases to announce or refresh (a number, or all)
+        default: all
 
 permissions:
   contents: write
@@ -39,9 +45,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          FLIT_API_URL: ${{ vars.FLIT_API_URL }}
+          RELEASE_SECRET: ${{ secrets.RELEASE_SECRET }}
           MODE: ${{ inputs.mode }}
+          COUNT: ${{ inputs.count }}
         run: |
           case "$MODE" in
+            backfill) node scripts/release.mjs --backfill ;;
+            refresh) node scripts/release.mjs --backfill --refresh && node scripts/release.mjs --announce --refresh --count="$COUNT" ;;
+            announce) node scripts/release.mjs --announce --count="$COUNT" ;;
             dry-run) node scripts/release.mjs --dry ;;
             *) node scripts/release.mjs ;;
           esac
