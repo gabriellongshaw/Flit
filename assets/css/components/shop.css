@@ -183,29 +183,6 @@
   font-weight: 600;
 }
 
-.tertiary-button {
-  padding: 8px 14px;
-  border: none;
-  border-radius: 999px;
-  background: var(--button-secondary-bg);
-  color: var(--button-secondary-text);
-  font-family: var(--font-family);
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  touch-action: manipulation;
-  transition: background 0.2s ease, transform 0.15s ease;
-}
-
-.tertiary-button:hover {
-  background: var(--button-secondary-bg-hover);
-}
-
-.tertiary-button:active {
-  transform: scale(0.97);
-}
-
 .preview-card {
   display: flex;
   flex-direction: column;

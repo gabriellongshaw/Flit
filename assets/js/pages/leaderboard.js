@@ -129,8 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const hit = cache[name];
     if (!force && hit && Date.now() - hit.at < CACHE_MS) return render(hit.data);
     if (!profile.ready) {
-      if (profile.session.status === 'loading') return skeleton();
-      return message('Could not reach the leaderboard.', true);
+      if (profile.session.error && !profile.session.syncing && profile.session.status !== 'loading') return message('Could not reach the leaderboard.', true);
+      return skeleton();
     }
     skeleton();
     try {
@@ -184,6 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastKey = '';
   profile.subscribe(() => {
     renderChrome();
+    if (!profile.ready && !profile.session.error) return;
     const key = `${profile.ready}:${profile.state.uid}:${profile.state.anon}:${profile.state.best}`;
     if (key === lastKey) return;
     lastKey = key;
@@ -206,5 +207,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   renderChrome();
-  load(false);
+  skeleton();
+  if (profile.ready) {
+    lastKey = `${profile.ready}:${profile.state.uid}:${profile.state.anon}:${profile.state.best}`;
+    load(false);
+  }
 });
