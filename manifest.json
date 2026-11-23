@@ -1,7 +1,7 @@
 {
   "name": "Flit",
   "short_name": "Flit",
-  "description": "A simple one-tap flapping game.",
+  "description": "A simple one-tap flapping game. Earn coins, shop for birds, hats and worlds, and climb the leaderboard.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
