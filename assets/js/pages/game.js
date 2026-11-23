@@ -137,8 +137,23 @@ document.addEventListener('DOMContentLoaded', () => {
     else pauseGame();
   }
 
-  function action() {
+  let waiting = false;
+  const hintText = hint.textContent;
+
+  async function startWhenReady() {
+    if (waiting) return;
+    waiting = true;
+    if (!profile.settled) {
+      hint.textContent = 'Getting ready…';
+      await profile.whenSettled(4000);
+      hint.textContent = hintText;
+    }
+    waiting = false;
     if (game.state === 'ready') startRun();
+  }
+
+  function action() {
+    if (game.state === 'ready') startWhenReady();
     else if (game.state === 'playing') game.flap();
     else if (game.state === 'over' && overReady) startRun();
   }

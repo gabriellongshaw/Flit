@@ -149,6 +149,21 @@ function startAnonymous() {
     });
 }
 
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function withRetry(fn, tries = 3) {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i >= tries || (e && e.message === 'signed-out')) throw e;
+      await wait(500 * i);
+    }
+  }
+}
+
+const isSettled = () => cloudReady || !!session.error || session.status === 'unavailable' || (session.status === 'out' && !session.syncing);
+
 const accountOf = data => (data.uid && !data.anon ? data.uid : null);
 
 async function handleUser(user) {
@@ -355,12 +370,31 @@ export const profile = {
     if (cloud) await cloud.authMod.signOut(cloud.auth);
   },
 
+  get settled() {
+    return isSettled();
+  },
+
+  whenSettled(ms = 4000) {
+    if (isSettled()) return Promise.resolve(true);
+    return new Promise(resolve => {
+      let timer = 0;
+      const done = ok => {
+        clearTimeout(timer);
+        listeners.delete(check);
+        resolve(ok);
+      };
+      const check = () => {
+        if (isSettled()) done(true);
+      };
+      timer = setTimeout(() => done(false), ms);
+      listeners.add(check);
+    });
+  },
+
   beginRun() {
     runPromise = null;
     if (!cloudReady || !state.uid) return;
-    runPromise = call('startRun')
-      .then(out => out.runId)
-      .catch(() => null);
+    runPromise = withRetry(() => call('startRun')).then(out => out.runId).catch(() => null);
   },
 
   recordRun({ score, flaps }) {
@@ -383,7 +417,7 @@ export const profile = {
     Promise.resolve(pending)
       .then(runId => {
         if (!runId) throw new Error('no-run');
-        return call('submitRun', { runId, score, flaps });
+        return withRetry(() => call('submitRun', { runId, score, flaps }));
       })
       .then(out => {
         if (out.rejected) console.warn(`[flit] run not saved: ${out.rejected}`);
