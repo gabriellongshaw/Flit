@@ -87,7 +87,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return el;
   }
 
+  let shown = { scope: '', uid: '', kind: '', sig: '' };
+  const inflight = {};
+
   function message(text, retry) {
+    shown = { scope: '', uid: '', kind: 'message', sig: '' };
     list.replaceChildren();
     const p = document.createElement('p');
     p.className = 'quest-empty';
@@ -103,6 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function skeleton() {
+    if (shown.kind === 'skeleton') return;
+    shown = { scope: '', uid: '', kind: 'skeleton', sig: '' };
     list.replaceChildren();
     for (let i = 0; i < 6; i++) {
       const el = row({ name: '        ', score: '0000' }, i + 1, i, false);
@@ -111,9 +117,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function render(data) {
+  function render(data, name) {
+    const sig = JSON.stringify(data);
+    const uid = String(profile.state.uid);
+    if (shown.kind === 'rows' && shown.scope === name && shown.uid === uid && shown.sig === sig) return;
+    shown = { scope: name, uid, kind: 'rows', sig };
     list.replaceChildren();
-    if (!data.entries.length) return message('No scores yet. Be the first!');
+    if (!data.entries.length) {
+      message('No scores yet. Be the first!');
+      shown = { scope: name, uid, kind: 'rows', sig };
+      return;
+    }
     data.entries.forEach((entry, i) => list.appendChild(row(entry, i + 1, i, entry.me)));
     if (data.me) {
       const gap = document.createElement('div');
@@ -127,16 +141,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const name = scope;
     const mine = ++token;
     const hit = cache[name];
-    if (!force && hit && Date.now() - hit.at < CACHE_MS) return render(hit.data);
+    if (!force && hit && Date.now() - hit.at < CACHE_MS) return render(hit.data, name);
     if (!profile.ready) {
       if (profile.session.error && !profile.session.syncing && profile.session.status !== 'loading') return message('Could not reach the leaderboard.', true);
       return skeleton();
     }
-    skeleton();
+    const uid = String(profile.state.uid);
+    if (shown.kind !== 'rows' || shown.scope !== name || shown.uid !== uid) skeleton();
+    const id = `${uid}:${profile.state.anon}:${profile.state.best}`;
+    let run = inflight[name];
+    if (!run || run.id !== id) {
+      run = { id, promise: profile.fetchBoard(name) };
+      inflight[name] = run;
+      const clear = () => {
+        if (inflight[name] === run) delete inflight[name];
+      };
+      run.promise.then(clear, clear);
+    }
     try {
-      const data = await profile.fetchBoard(name);
+      const data = await run.promise;
       cache[name] = { at: Date.now(), data };
-      if (mine === token) render(data);
+      if (mine === token) render(data, name);
     } catch {
       if (mine === token) message('Could not load the leaderboard.', true);
     }
