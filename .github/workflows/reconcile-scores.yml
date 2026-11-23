@@ -1,0 +1,32 @@
+name: Reconcile scores
+
+on:
+  workflow_dispatch:
+    inputs:
+      write:
+        description: Apply the changes (leave off for a dry run that only lists them)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reconcile-scores
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Reconcile
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          WRITE: ${{ inputs.write }}
+        run: |
+          if [ "$WRITE" = "true" ]; then node scripts/reconcile-scores.mjs --write; else node scripts/reconcile-scores.mjs; fi
