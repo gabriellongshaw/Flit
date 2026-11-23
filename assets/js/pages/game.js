@@ -25,7 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
     coinEl.textContent = profile.state.coins + extra;
   };
   profile.subscribe(() => {
-    if (game.state !== 'playing' && game.state !== 'paused') showCoins(0);
+    if (game.state !== 'playing' && game.state !== 'paused') {
+      showCoins(0);
+      game.best = profile.bestScore;
+      bestEl.textContent = `Best ${game.best}`;
+    }
   });
 
   const scoreEl = $('score');

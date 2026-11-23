@@ -4,6 +4,7 @@ import { cleanPrivacy, defaultPrivacy } from './privacy.js';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED, findItem, kindOf } from './cosmetics.js';
 import { allQuests, applyRun, cleanQuests, freshQuests, isClaimed, progressOf, readyCount, rollQuests } from './quests.js';
 import { weekKey } from './week.js';
+import { getBest, saveBest } from './storage.js';
 
 const PHOTO_MODES = ['google', 'custom', 'none'];
 
@@ -121,6 +122,7 @@ async function call(action, data) {
 
 function applyServer(remote) {
   state = { ...state, ...sanitize(remote) };
+  if (cloudReady && state.uid && !state.anon) saveBest(state.best);
   persist();
   emit();
 }
@@ -217,6 +219,7 @@ async function runUser(user) {
     if (next) {
       state = next;
       persist();
+      if (!next.anon) saveBest(next.best);
     }
     session.syncing = false;
     emit();
@@ -254,6 +257,11 @@ export const profile = {
     if (state.photoMode === 'custom') return state.photoData;
     if (state.photoMode === 'google') return state.photo;
     return null;
+  },
+
+  get bestScore() {
+    if (cloudReady && state.uid && !state.anon) return state.best;
+    return Math.max(getBest(), state.best);
   },
 
   get social() {

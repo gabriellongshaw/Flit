@@ -7,7 +7,6 @@ import { readPalette, onThemeChange, detectTouch, isDark } from '../core/theme.j
 import { initGraphics } from '../core/graphics.js';
 import { initPageFadeIn, navigateTo } from '../core/transition.js';
 import { initAudio } from '../core/audio.js';
-import { getBest } from '../core/storage.js';
 import { clamp } from '../core/utils.js';
 import { paletteFor } from '../core/cosmetics.js';
 import { profile } from '../core/profile.js';
@@ -26,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const bestEl = document.getElementById('home-best');
   const showStats = () => {
-    const best = Math.max(getBest(), profile.state.best);
+    const best = profile.bestScore;
     const { coins } = profile.state;
     bestEl.textContent = best > 0 || coins > 0 ? `Best ${best} · ${coins} coins` : '';
   };
